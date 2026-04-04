@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Sidebar } from "@/components/sidebar";
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: "不動産DX Platform",
@@ -12,7 +14,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <main className="flex-1 p-8">{children}</main>
+      </body>
     </html>
   );
 }

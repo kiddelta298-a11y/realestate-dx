@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "不動産DX ブラウザツール",
+  "version": "1.0.0",
+  "description": "iimonから物件取込・SUUMOへ自動投稿するブラウザ拡張機能",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://iimon.co.jp/*",
+    "https://suumo.jp/*",
+    "http://localhost:*/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "不動産DX",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://iimon.co.jp/*"],
+      "js": ["content/iimon.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://suumo.jp/edit/*", "https://suumo.jp/jj/*"],
+      "js": ["content/suumo.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

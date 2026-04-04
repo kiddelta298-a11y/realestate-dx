@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: realestate-dx-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && node dist/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false   # Neon の接続文字列を Render ダッシュボードで設定
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NEXT_PUBLIC_API_URL
+        sync: false   # Render デプロイ後の backend URL を設定
+      - key: IIMON_API_KEY
+        sync: false
+      - key: SUUMO_API_KEY
+        sync: false
+      - key: REPLICATE_API_TOKEN
+        sync: false

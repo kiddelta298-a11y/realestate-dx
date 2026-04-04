@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>不動産DX ブラウザツール</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 13px;
+      color: #111;
+      background: #fff;
+    }
+    .header {
+      background: #1d4ed8;
+      color: #fff;
+      padding: 14px 16px;
+    }
+    .header h1 { font-size: 15px; font-weight: 700; }
+    .header p { font-size: 11px; color: #bfdbfe; margin-top: 2px; }
+    .section { padding: 14px 16px; border-bottom: 1px solid #f3f4f6; }
+    .section:last-child { border-bottom: none; }
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 0;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.green { background: #22c55e; }
+    .status-dot.gray { background: #9ca3af; }
+    .status-dot.yellow { background: #f59e0b; }
+    .status-label { color: #374151; }
+    .status-sub { color: #9ca3af; font-size: 11px; margin-left: auto; }
+
+    .form-group { margin-bottom: 10px; }
+    label { display: block; font-size: 12px; font-weight: 500; color: #374151; margin-bottom: 4px; }
+    input[type="text"] {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+    }
+    input[type="text"]:focus { border-color: #2563eb; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 8px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      text-align: center;
+      transition: opacity 0.2s;
+    }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-sm { font-size: 12px; padding: 6px; }
+
+    .alert {
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-top: 8px;
+    }
+    .alert-success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .alert-error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge-blue { background: #eff6ff; color: #1d4ed8; }
+    .badge-orange { background: #fff7ed; color: #c2410c; }
+    .how-to {
+      font-size: 11px;
+      color: #6b7280;
+      line-height: 1.6;
+    }
+    .how-to li { margin-bottom: 4px; }
+    .version { font-size: 10px; color: #9ca3af; text-align: center; padding: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🏠 不動産DX ブラウザツール</h1>
+  <p>iimon取込 / SUUMO自動投稿</p>
+</div>
+
+<!-- 接続状態 -->
+<div class="section">
+  <div class="section-title">接続状態</div>
+  <div class="status-row">
+    <div class="status-dot" id="api-dot"></div>
+    <span class="status-label">不動産DX API</span>
+    <span class="status-sub" id="api-url-display"></span>
+  </div>
+  <div id="api-status-msg" style="font-size:11px; color:#9ca3af; margin-top:4px;"></div>
+</div>
+
+<!-- 使い方 -->
+<div class="section">
+  <div class="section-title">使い方</div>
+  <ul class="how-to">
+    <li>
+      <span class="badge badge-blue">iimon</span>
+      iimon.co.jp を開くと右下に取込ボタンが表示されます
+    </li>
+    <li>
+      <span class="badge badge-orange">SUUMO</span>
+      SUUMO管理画面を開くと右上に自動入力パネルが表示されます
+    </li>
+  </ul>
+</div>
+
+<!-- 設定 -->
+<div class="section">
+  <div class="section-title">設定</div>
+  <div class="form-group">
+    <label>不動産DX API URL</label>
+    <input type="text" id="api-base" placeholder="http://localhost:3002" />
+  </div>
+  <div class="form-group">
+    <label>会社ID (companyId)</label>
+    <input type="text" id="company-id" placeholder="d2a99d6c-..." />
+  </div>
+  <button class="btn btn-primary btn-sm" id="save-settings">設定を保存</button>
+  <div id="save-result" style="display:none" class="alert"></div>
+</div>
+
+<div class="version">不動産DX ブラウザツール v1.0.0</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

@@ -1,21 +1,680 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
 }
 
-// Phase0: 最小限のスキーマ — 詳細は設計大臣の成果物に基づき拡張
+// ===== Company (テナント) =====
+
+model Company {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @db.VarChar(255)
+  slug      String   @unique @db.VarChar(100)
+  plan      String   @default("trial") @db.VarChar(50)
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  users        User[]
+  properties   Property[]
+  customers    Customer[]
+  applications Application[]
+  tasks        Task[]
+  chatSessions ChatSession[]
+  chatMessages ChatMessage[]
+
+  @@map("companies")
+}
+
+// ===== User (担当者) =====
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  role      String   @default("user")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id         String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String  @map("company_id") @db.Uuid
+  email      String  @db.VarChar(255)
+  name       String  @db.VarChar(100)
+  role       String  @default("agent") @db.VarChar(50)
+  avatarUrl  String? @map("avatar_url")
+  replyStyle Json    @default("{}") @map("reply_style")
+  isActive   Boolean @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
+  company      Company       @relation(fields: [companyId], references: [id])
+  customers    Customer[]
+  tasks        Task[]
+  applications Application[]
+  chatSessions ChatSession[]
+
+  @@unique([companyId, email])
   @@map("users")
+}
+
+// ===== Customer (顧客) =====
+
+model Customer {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String  @map("company_id") @db.Uuid
+  assignedUserId String? @map("assigned_user_id") @db.Uuid
+  name           String  @db.VarChar(100)
+  email          String? @db.VarChar(255)
+  phone          String? @db.VarChar(20)
+  lineUserId     String? @map("line_user_id") @db.VarChar(100)
+  source         String  @default("web") @db.VarChar(50)
+  status         String  @default("active") @db.VarChar(50)
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company      Company              @relation(fields: [companyId], references: [id])
+  assignedUser User?                @relation(fields: [assignedUserId], references: [id])
+  preferences  CustomerPreference?
+  applications Application[]
+  proposals    PropertyProposal[]
+  chatSessions ChatSession[]
+
+  @@map("customers")
+}
+
+// ===== CustomerPreference (顧客希望条件) =====
+
+model CustomerPreference {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  customerId     String   @unique @map("customer_id") @db.Uuid
+  budgetMin      Int?     @map("budget_min")
+  budgetMax      Int?     @map("budget_max")
+  areaIds        String[] @map("area_ids")
+  stationIds     String[] @map("station_ids")
+  walkMinutesMax Int?     @map("walk_minutes_max")
+  roomLayout     String[] @map("room_layout")
+  floorAreaMin   Decimal? @map("floor_area_min") @db.Decimal(6, 2)
+  moveInDate     DateTime? @map("move_in_date") @db.Date
+  mustConditions Json     @default("[]") @map("must_conditions")
+  niceConditions Json     @default("[]") @map("nice_conditions")
+  ngConditions   Json     @default("[]") @map("ng_conditions")
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("customer_preferences")
+}
+
+// ===== Property (物件) =====
+
+model Property {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  externalId     String?  @map("external_id") @db.VarChar(100)
+  name           String   @db.VarChar(255)
+  propertyType   String   @map("property_type") @db.VarChar(50)
+  address        String   @db.VarChar(500)
+  latitude       Decimal? @db.Decimal(9, 6)
+  longitude      Decimal? @db.Decimal(9, 6)
+  nearestStation String?  @map("nearest_station") @db.VarChar(100)
+  walkMinutes    Int?     @map("walk_minutes")
+  rent           Int
+  managementFee  Int      @default(0) @map("management_fee")
+  deposit        Int      @default(0)
+  keyMoney       Int      @default(0) @map("key_money")
+  roomLayout     String?  @map("room_layout") @db.VarChar(20)
+  floorArea      Decimal? @map("floor_area") @db.Decimal(6, 2)
+  floor          Int?
+  totalFloors    Int?     @map("total_floors")
+  builtYear      Int?     @map("built_year")
+  availableFrom  DateTime? @map("available_from") @db.Date
+  features       Json     @default("[]")
+  description    String?
+  status         String   @default("available") @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company      Company            @relation(fields: [companyId], references: [id])
+  images       PropertyImage[]
+  applications Application[]
+  proposals    PropertyProposal[] @relation("ProposedProperty")
+  replacedBy   PropertyProposal[] @relation("ReplacedProperty")
+
+  @@index([companyId, status])
+  @@index([companyId, rent])
+  @@map("properties")
+}
+
+// ===== PropertyImage (物件画像) =====
+
+model PropertyImage {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String @map("company_id") @db.Uuid
+  propertyId String @map("property_id") @db.Uuid
+  url        String
+  caption    String? @db.VarChar(100)
+  sortOrder  Int     @default(0) @map("sort_order")
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@map("property_images")
+}
+
+// ===== Application (申込) =====
+
+model Application {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String   @map("company_id") @db.Uuid
+  customerId     String   @map("customer_id") @db.Uuid
+  propertyId     String   @map("property_id") @db.Uuid
+  assignedUserId String?  @map("assigned_user_id") @db.Uuid
+  status         String   @default("pending") @db.VarChar(50)
+  desiredMoveIn  DateTime? @map("desired_move_in") @db.Date
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  company      Company                    @relation(fields: [companyId], references: [id])
+  customer     Customer                   @relation(fields: [customerId], references: [id])
+  property     Property                   @relation(fields: [propertyId], references: [id])
+  assignedUser User?                      @relation(fields: [assignedUserId], references: [id])
+  statusHistory ApplicationStatusHistory[]
+  contracts    Contract[]
+
+  @@index([companyId, status])
+  @@index([companyId, propertyId])
+  @@map("applications")
+}
+
+// ===== ApplicationStatusHistory (申込ステータス履歴) =====
+
+model ApplicationStatusHistory {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String   @map("company_id") @db.Uuid
+  applicationId String   @map("application_id") @db.Uuid
+  fromStatus    String?  @map("from_status") @db.VarChar(50)
+  toStatus      String   @map("to_status") @db.VarChar(50)
+  changedBy     String?  @map("changed_by") @db.Uuid
+  reason        String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  application Application @relation(fields: [applicationId], references: [id])
+
+  @@map("application_status_history")
+}
+
+// ===== PropertyProposal (物件提案) =====
+
+model PropertyProposal {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId          String   @map("company_id") @db.Uuid
+  customerId         String   @map("customer_id") @db.Uuid
+  propertyId         String   @map("property_id") @db.Uuid
+  proposedBy         String   @map("proposed_by") @db.VarChar(50)
+  matchScore         Decimal? @map("match_score") @db.Decimal(5, 4)
+  matchReasons       Json     @default("[]") @map("match_reasons")
+  isAlternative      Boolean  @default(false) @map("is_alternative")
+  replacedPropertyId String?  @map("replaced_property_id") @db.Uuid
+  customerReaction   String?  @map("customer_reaction") @db.VarChar(50)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  customer         Customer @relation(fields: [customerId], references: [id])
+  property         Property @relation("ProposedProperty", fields: [propertyId], references: [id])
+  replacedProperty Property? @relation("ReplacedProperty", fields: [replacedPropertyId], references: [id])
+
+  @@map("property_proposals")
+}
+
+// ===== Task (タスク) =====
+
+model Task {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  assignedUserId String?   @map("assigned_user_id") @db.Uuid
+  customerId     String?   @map("customer_id") @db.Uuid
+  title          String    @db.VarChar(255)
+  description    String?
+  taskType       String    @map("task_type") @db.VarChar(50)
+  priority       String    @default("medium") @db.VarChar(20)
+  status         String    @default("pending") @db.VarChar(50)
+  dueDate        DateTime? @map("due_date") @db.Date
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  company      Company  @relation(fields: [companyId], references: [id])
+  assignedUser User?    @relation(fields: [assignedUserId], references: [id])
+
+  @@index([companyId, assignedUserId, status])
+  @@index([companyId, dueDate])
+  @@map("tasks")
+}
+
+// ===== ChatSession (チャットセッション) =====
+
+model ChatSession {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  customerId      String    @map("customer_id") @db.Uuid
+  assignedUserId  String?   @map("assigned_user_id") @db.Uuid
+  channel         String    @default("web") @db.VarChar(50)
+  isAiActive      Boolean   @default(false) @map("is_ai_active")
+  aiHandoffReason String?   @map("ai_handoff_reason")
+  startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamptz
+  endedAt         DateTime? @map("ended_at") @db.Timestamptz
+
+  company  Company       @relation(fields: [companyId], references: [id])
+  customer Customer      @relation(fields: [customerId], references: [id])
+  user     User?         @relation(fields: [assignedUserId], references: [id])
+  messages ChatMessage[]
+
+  @@map("chat_sessions")
+}
+
+// ===== ChatMessage (チャットメッセージ) =====
+
+model ChatMessage {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  sessionId  String   @map("session_id") @db.Uuid
+  senderType String   @map("sender_type") @db.VarChar(20)
+  senderId   String?  @map("sender_id") @db.Uuid
+  content    String
+  metadata   Json     @default("{}")
+  isDraft    Boolean  @default(false) @map("is_draft")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  company Company     @relation(fields: [companyId], references: [id])
+  session ChatSession @relation(fields: [sessionId], references: [id])
+
+  @@index([companyId, sessionId, createdAt])
+  @@map("chat_messages")
+}
+
+// ===== FollowupSequence (追客シーケンス定義) =====
+
+model FollowupSequence {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  name        String   @db.VarChar(255)
+  description String?
+  triggerEvent String  @map("trigger_event") @db.VarChar(50) // inquiry, visit, application
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  steps      FollowupStep[]
+  executions FollowupExecution[]
+
+  @@index([companyId, triggerEvent])
+  @@map("followup_sequences")
+}
+
+// ===== FollowupStep (追客ステップ定義) =====
+
+model FollowupStep {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sequenceId   String @map("sequence_id") @db.Uuid
+  stepOrder    Int    @map("step_order")
+  delayDays    Int    @map("delay_days") // トリガーから何日後
+  channel      String @db.VarChar(20) // email, line, task
+  templateBody String @map("template_body") // メッセージテンプレート
+  subject      String? @db.VarChar(255) // メール件名
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  sequence   FollowupSequence    @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  executions FollowupExecution[]
+
+  @@unique([sequenceId, stepOrder])
+  @@map("followup_steps")
+}
+
+// ===== FollowupExecution (追客実行履歴) =====
+
+model FollowupExecution {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  sequenceId   String    @map("sequence_id") @db.Uuid
+  stepId       String?   @map("step_id") @db.Uuid
+  customerId   String    @map("customer_id") @db.Uuid
+  status       String    @default("pending") @db.VarChar(50) // pending, sent, failed, cancelled
+  scheduledAt  DateTime  @map("scheduled_at") @db.Timestamptz
+  executedAt   DateTime? @map("executed_at") @db.Timestamptz
+  channel      String    @db.VarChar(20)
+  messageBody  String?   @map("message_body")
+  errorMessage String?   @map("error_message")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  sequence FollowupSequence @relation(fields: [sequenceId], references: [id])
+  step     FollowupStep?    @relation(fields: [stepId], references: [id])
+
+  @@index([companyId, status, scheduledAt])
+  @@index([customerId])
+  @@map("followup_executions")
+}
+
+// ===== LineAccount (LINE連携アカウント) =====
+
+model LineAccount {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String   @unique @map("company_id") @db.Uuid
+  channelId        String   @map("channel_id") @db.VarChar(100)
+  channelSecret    String   @map("channel_secret") @db.VarChar(255)
+  channelAccessToken String @map("channel_access_token")
+  webhookActive    Boolean  @default(true) @map("webhook_active")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("line_accounts")
+}
+
+// ===== Contract (電子契約) =====
+
+model Contract {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  applicationId  String    @map("application_id") @db.Uuid
+  customerId     String    @map("customer_id") @db.Uuid
+  propertyId     String    @map("property_id") @db.Uuid
+  status         String    @default("draft") @db.VarChar(50) // draft, sent, signed, cancelled
+  contractType   String    @map("contract_type") @db.VarChar(50) // lease, renewal, termination
+  pdfUrl         String?   @map("pdf_url")
+  templateData   Json      @default("{}") @map("template_data") // 差し込みデータ
+  rentAmount     Int       @map("rent_amount")
+  depositAmount  Int       @default(0) @map("deposit_amount")
+  keyMoneyAmount Int       @default(0) @map("key_money_amount")
+  leaseStartDate DateTime? @map("lease_start_date") @db.Date
+  leaseEndDate   DateTime? @map("lease_end_date") @db.Date
+  sentAt         DateTime? @map("sent_at") @db.Timestamptz
+  signedAt       DateTime? @map("signed_at") @db.Timestamptz
+  signatureData  Json?     @map("signature_data") // 署名メタデータ
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  application Application @relation(fields: [applicationId], references: [id])
+
+  @@index([companyId, status])
+  @@index([customerId])
+  @@map("contracts")
+}
+
+// ===== ViewingSlot (内見枠) =====
+
+model ViewingSlot {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId  String   @map("company_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid // 担当者
+  date       DateTime @db.Date
+  startTime  String   @map("start_time") @db.VarChar(5) // "09:00"
+  endTime    String   @map("end_time") @db.VarChar(5)   // "10:00"
+  isAvailable Boolean @default(true) @map("is_available")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  viewings Viewing[]
+
+  @@index([companyId, userId, date])
+  @@index([companyId, date, isAvailable])
+  @@map("viewing_slots")
+}
+
+// ===== Viewing (内見予約) =====
+
+model Viewing {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  slotId       String    @map("slot_id") @db.Uuid
+  customerId   String    @map("customer_id") @db.Uuid
+  propertyId   String    @map("property_id") @db.Uuid
+  status       String    @default("confirmed") @db.VarChar(50) // confirmed, completed, cancelled, no_show
+  notes        String?
+  cancelReason String?   @map("cancel_reason")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  slot ViewingSlot @relation(fields: [slotId], references: [id])
+
+  @@index([companyId, status])
+  @@index([customerId])
+  @@map("viewings")
+}
+
+// ===== Tenant (入居者) =====
+
+model Tenant {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  customerId       String    @map("customer_id") @db.Uuid
+  contractId       String    @map("contract_id") @db.Uuid
+  propertyId       String    @map("property_id") @db.Uuid
+  applicationId    String?   @map("application_id") @db.Uuid
+  name             String    @db.VarChar(100)
+  email            String?   @db.VarChar(255)
+  phone            String?   @db.VarChar(20)
+  emergencyContact Json?     @map("emergency_contact") // {name, phone, relation}
+  guarantorInfo    Json?     @map("guarantor_info")     // {name, phone, address, relation}
+  leaseStartDate   DateTime  @map("lease_start_date") @db.Date
+  leaseEndDate     DateTime  @map("lease_end_date") @db.Date
+  rentAmount       Int       @map("rent_amount")
+  managementFee    Int       @default(0) @map("management_fee")
+  status           String    @default("active") @db.VarChar(50) // active, notice_given, vacated
+  moveInDate       DateTime? @map("move_in_date") @db.Date
+  moveOutDate      DateTime? @map("move_out_date") @db.Date
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  invoices  RentInvoice[]
+  renewals  Renewal[]
+  vacations Vacation[]
+
+  @@index([companyId, status])
+  @@index([companyId, propertyId])
+  @@index([companyId, leaseEndDate])
+  @@map("tenants")
+}
+
+// ===== RentInvoice (家賃請求書) =====
+
+model RentInvoice {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  propertyId    String    @map("property_id") @db.Uuid
+  billingMonth  String    @map("billing_month") @db.VarChar(7) // "2026-04"
+  rentAmount    Int       @map("rent_amount")
+  managementFee Int       @default(0) @map("management_fee")
+  otherCharges  Int       @default(0) @map("other_charges")
+  totalAmount   Int       @map("total_amount")
+  status        String    @default("pending") @db.VarChar(50) // pending, paid, overdue, partial, cancelled
+  dueDate       DateTime  @map("due_date") @db.Date
+  paidAt        DateTime? @map("paid_at") @db.Timestamptz
+  paidAmount    Int?      @map("paid_amount")
+  paymentMethod String?   @map("payment_method") @db.VarChar(50) // bank_transfer, credit_card, direct_debit
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, billingMonth])
+  @@index([companyId, status])
+  @@index([companyId, dueDate])
+  @@index([companyId, billingMonth])
+  @@map("rent_invoices")
+}
+
+// ===== Renewal (契約更新) =====
+
+model Renewal {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  tenantId         String    @map("tenant_id") @db.Uuid
+  currentEndDate   DateTime  @map("current_end_date") @db.Date
+  newEndDate       DateTime? @map("new_end_date") @db.Date
+  newRentAmount    Int?      @map("new_rent_amount")
+  renewalFee       Int       @default(0) @map("renewal_fee")
+  status           String    @default("pending") @db.VarChar(50) // pending, notified, accepted, rejected, completed
+  notifiedAt       DateTime? @map("notified_at") @db.Timestamptz
+  respondedAt      DateTime? @map("responded_at") @db.Timestamptz
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([companyId, status])
+  @@index([companyId, currentEndDate])
+  @@map("renewals")
+}
+
+// ===== Vacation (退去) =====
+
+model Vacation {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId          String    @map("company_id") @db.Uuid
+  tenantId           String    @map("tenant_id") @db.Uuid
+  propertyId         String    @map("property_id") @db.Uuid
+  requestedMoveOut   DateTime  @map("requested_move_out") @db.Date
+  actualMoveOut      DateTime? @map("actual_move_out") @db.Date
+  status             String    @default("requested") @db.VarChar(50) // requested, confirmed, inspection_scheduled, restoration_in_progress, completed
+  inspectionDate     DateTime? @map("inspection_date") @db.Date
+  restorationCost    Int?      @map("restoration_cost")
+  depositRefund      Int?      @map("deposit_refund")
+  restorationNotes   String?   @map("restoration_notes")
+  notes              String?
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([companyId, status])
+  @@map("vacations")
+}
+
+// ===== SaleProperty (売買物件) =====
+
+model SaleProperty {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  externalId     String?   @map("external_id") @db.VarChar(100)
+  name           String    @db.VarChar(255)
+  propertyType   String    @map("property_type") @db.VarChar(50) // house, land, mansion, apartment_unit, commercial
+  address        String    @db.VarChar(500)
+  latitude       Decimal?  @db.Decimal(9, 6)
+  longitude      Decimal?  @db.Decimal(9, 6)
+  nearestStation String?   @map("nearest_station") @db.VarChar(100)
+  walkMinutes    Int?      @map("walk_minutes")
+  price          Int       // 売出価格（万円）
+  landArea       Decimal?  @map("land_area") @db.Decimal(8, 2) // 土地面積(m2)
+  buildingArea   Decimal?  @map("building_area") @db.Decimal(8, 2) // 建物面積(m2)
+  builtYear      Int?      @map("built_year")
+  structure      String?   @db.VarChar(50) // RC, SRC, 木造, 鉄骨
+  floors         Int?
+  roomLayout     String?   @map("room_layout") @db.VarChar(20)
+  landRights     String    @default("ownership") @map("land_rights") @db.VarChar(50) // ownership, leasehold
+  zoning         String?   @db.VarChar(100) // 用途地域
+  buildingRatio  Decimal?  @map("building_ratio") @db.Decimal(5, 2) // 建ぺい率
+  floorAreaRatio Decimal?  @map("floor_area_ratio") @db.Decimal(5, 2) // 容積率
+  features       Json      @default("[]")
+  description    String?
+  status         String    @default("for_sale") @db.VarChar(50) // for_sale, negotiating, sold, withdrawn
+  sellerCustomerId String? @map("seller_customer_id") @db.Uuid
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  saleCases SaleCase[]
+
+  @@index([companyId, status])
+  @@index([companyId, price])
+  @@map("sale_properties")
+}
+
+// ===== SaleCase (売買案件) =====
+
+model SaleCase {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  salePropertyId   String?   @map("sale_property_id") @db.Uuid
+  customerId       String    @map("customer_id") @db.Uuid
+  assignedUserId   String?   @map("assigned_user_id") @db.Uuid
+  caseType         String    @map("case_type") @db.VarChar(50) // purchase, sell
+  status           String    @default("inquiry") @db.VarChar(50) // inquiry, viewing, negotiating, contracted, cancelled
+  budgetMin        Int?      @map("budget_min") // 万円
+  budgetMax        Int?      @map("budget_max")
+  desiredArea      String?   @map("desired_area") @db.VarChar(255)
+  desiredConditions Json     @default("{}") @map("desired_conditions")
+  offerPrice       Int?      @map("offer_price") // 提示額（万円）
+  agreedPrice      Int?      @map("agreed_price") // 成約額（万円）
+  notes            String?
+  contractedAt     DateTime? @map("contracted_at") @db.Timestamptz
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  saleProperty SaleProperty? @relation(fields: [salePropertyId], references: [id])
+
+  @@index([companyId, status])
+  @@index([companyId, assignedUserId])
+  @@index([customerId])
+  @@map("sale_cases")
+}
+
+// ===== IimonSync (iimon同期履歴) =====
+
+model IimonSync {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  status       String    @default("pending") @db.VarChar(50) // pending, running, completed, failed
+  newCount     Int       @default(0) @map("new_count")
+  updatedCount Int       @default(0) @map("updated_count")
+  errorMessage String?   @map("error_message")
+  startedAt    DateTime  @map("started_at") @db.Timestamptz
+  completedAt  DateTime? @map("completed_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([companyId, createdAt])
+  @@map("iimon_syncs")
+}
+
+// ===== SuumoPost (SUUMO投稿履歴) =====
+
+model SuumoPost {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  status          String    @default("pending") @db.VarChar(50) // pending, processing, posted, failed
+  suumoPropertyId String?   @map("suumo_property_id") @db.VarChar(100)
+  useStaging      Boolean   @default(false) @map("use_staging")
+  stagedImageUrls Json      @default("[]") @map("staged_image_urls")
+  errorMessage    String?   @map("error_message")
+  postedAt        DateTime? @map("posted_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([companyId, status])
+  @@index([propertyId])
+  @@map("suumo_posts")
+}
+
+// ===== Visit (来店記録) =====
+
+model Visit {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  customerId     String    @map("customer_id") @db.Uuid
+  assignedUserId String?   @map("assigned_user_id") @db.Uuid
+  visitDate      DateTime  @map("visit_date") @db.Date
+  visitTime      String?   @map("visit_time") @db.VarChar(5) // "14:00"
+  purpose        String    @db.VarChar(50) // inquiry, viewing, contract, consultation, other
+  channel        String    @default("walk_in") @db.VarChar(50) // walk_in, appointment, referral
+  result         String?   @db.VarChar(50) // interested, application, contracted, not_interested, follow_up
+  propertyIds    String[]  @map("property_ids") // 案内物件ID配列
+  duration       Int?      // 滞在時間(分)
+  notes          String?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([companyId, visitDate])
+  @@index([companyId, assignedUserId, visitDate])
+  @@index([customerId])
+  @@map("visits")
 }
