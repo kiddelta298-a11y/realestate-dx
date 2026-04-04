@@ -3,37 +3,36 @@
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/page-header";
 import { fetchVisits, createVisit } from "@/lib/api";
-import type { Visit } from "@/types";
-import { visitResultLabel, customerSourceLabel } from "@/types";
+import type { Visit, VisitPurpose, VisitChannel, VisitResult } from "@/types";
+import { visitResultLabel, visitPurposeLabel, visitChannelLabel } from "@/types";
 
-type VisitResult = Visit["result"];
-type VisitSource = Visit["source"];
-
-const visitResults: VisitResult[] = ["viewing", "application", "pending", "lost"];
-const visitSources: VisitSource[] = ["web", "suumo", "homes", "line", "walk_in"];
+const visitResults: VisitResult[] = ["interested", "application", "contracted", "not_interested", "follow_up"];
+const visitPurposes: VisitPurpose[] = ["inquiry", "viewing", "contract", "consultation", "other"];
+const visitChannels: VisitChannel[] = ["walk_in", "appointment", "referral"];
 
 const resultBadgeClass: Record<VisitResult, string> = {
-  viewing: "bg-blue-100 text-blue-700",
+  interested: "bg-blue-100 text-blue-700",
   application: "bg-green-100 text-green-700",
-  pending: "bg-yellow-100 text-yellow-700",
-  lost: "bg-red-100 text-red-700",
+  contracted: "bg-purple-100 text-purple-700",
+  not_interested: "bg-gray-100 text-gray-600",
+  follow_up: "bg-yellow-100 text-yellow-700",
 };
 
 type VisitForm = {
   customerId: string;
   visitDate: string;
-  source: VisitSource;
-  purpose: string;
-  result: VisitResult;
+  purpose: VisitPurpose;
+  channel: VisitChannel;
+  result: VisitResult | "";
   notes: string;
 };
 
 const emptyForm: VisitForm = {
   customerId: "",
   visitDate: "",
-  source: "web",
-  purpose: "",
-  result: "viewing",
+  purpose: "inquiry",
+  channel: "walk_in",
+  result: "",
   notes: "",
 };
 
@@ -85,9 +84,9 @@ export default function VisitsPage() {
       await createVisit({
         customerId: form.customerId,
         visitDate: form.visitDate,
-        source: form.source,
-        purpose: form.purpose || undefined,
-        result: form.result,
+        purpose: form.purpose,
+        channel: form.channel,
+        result: form.result || undefined,
         notes: form.notes || undefined,
       });
       setModalOpen(false);
@@ -181,15 +180,19 @@ export default function VisitsPage() {
                   {v.assignedUser?.name ?? "-"}
                 </td>
                 <td className="px-4 py-3 text-gray-600">
-                  {customerSourceLabel[v.source]}
+                  {visitChannelLabel[v.channel]}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{v.purpose ?? "-"}</td>
+                <td className="px-4 py-3 text-gray-600">{visitPurposeLabel[v.purpose]}</td>
                 <td className="px-4 py-3 text-center">
-                  <span
-                    className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${resultBadgeClass[v.result]}`}
-                  >
-                    {visitResultLabel[v.result]}
-                  </span>
+                  {v.result ? (
+                    <span
+                      className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${resultBadgeClass[v.result]}`}
+                    >
+                      {visitResultLabel[v.result]}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">-</span>
+                  )}
                 </td>
                 <td className="px-4 py-3 text-gray-600">{v.notes ?? "-"}</td>
               </tr>
@@ -233,40 +236,46 @@ export default function VisitsPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">来店経路</label>
                   <select
-                    value={form.source}
-                    onChange={(e) => setForm({ ...form, source: e.target.value as VisitSource })}
+                    value={form.channel}
+                    onChange={(e) => setForm({ ...form, channel: e.target.value as VisitChannel })}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {visitSources.map((s) => (
-                      <option key={s} value={s}>
-                        {customerSourceLabel[s]}
+                    {visitChannels.map((c) => (
+                      <option key={c} value={c}>
+                        {visitChannelLabel[c]}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">結果</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">目的</label>
                   <select
-                    value={form.result}
-                    onChange={(e) => setForm({ ...form, result: e.target.value as VisitResult })}
+                    value={form.purpose}
+                    onChange={(e) => setForm({ ...form, purpose: e.target.value as VisitPurpose })}
                     className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {visitResults.map((r) => (
-                      <option key={r} value={r}>
-                        {visitResultLabel[r]}
+                    {visitPurposes.map((p) => (
+                      <option key={p} value={p}>
+                        {visitPurposeLabel[p]}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">目的</label>
-                <input
-                  type="text"
-                  value={form.purpose}
-                  onChange={(e) => setForm({ ...form, purpose: e.target.value })}
+                <label className="block text-sm font-medium text-gray-700 mb-1">結果</label>
+                <select
+                  value={form.result}
+                  onChange={(e) => setForm({ ...form, result: e.target.value as VisitResult | "" })}
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                >
+                  <option value="">未設定</option>
+                  {visitResults.map((r) => (
+                    <option key={r} value={r}>
+                      {visitResultLabel[r]}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">備考</label>

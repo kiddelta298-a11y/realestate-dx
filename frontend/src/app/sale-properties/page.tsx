@@ -13,8 +13,8 @@ import { salePropertyStatusLabel, propertyTypeLabel } from "@/types";
 const propertyTypes: PropertyType[] = ["apartment", "mansion", "house", "office"];
 
 const salePropertyStatuses: SalePropertyStatus[] = [
-  "available",
-  "under_contract",
+  "for_sale",
+  "negotiating",
   "sold",
   "withdrawn",
 ];
@@ -41,13 +41,13 @@ const emptyForm: SalePropertyForm = {
   buildingArea: "",
   builtYear: "",
   roomLayout: "",
-  status: "available",
+  status: "for_sale",
   description: "",
 };
 
 const statusBadgeClass: Record<SalePropertyStatus, string> = {
-  available: "bg-green-100 text-green-700",
-  under_contract: "bg-yellow-100 text-yellow-700",
+  for_sale: "bg-green-100 text-green-700",
+  negotiating: "bg-yellow-100 text-yellow-700",
   sold: "bg-gray-100 text-gray-600",
   withdrawn: "bg-red-100 text-red-700",
 };

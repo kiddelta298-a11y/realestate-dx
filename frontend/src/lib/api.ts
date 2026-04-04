@@ -734,7 +734,7 @@ export async function fetchVisits(): Promise<{ data: Visit[] }> {
 
 export async function createVisit(data: {
   customerId: string; assignedUserId?: string; visitDate: string;
-  source: string; purpose?: string; result: string; notes?: string;
+  purpose: string; channel: string; result?: string; notes?: string;
 }): Promise<{ data: Visit }> {
   return request<{ data: Visit }>("/api/visits", {
     method: "POST",
