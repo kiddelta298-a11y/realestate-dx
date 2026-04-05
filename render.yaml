@@ -1,10 +1,9 @@
 services:
   - type: web
     name: realestate-dx-backend
-    runtime: node
+    runtime: docker
     rootDir: backend
-    buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: node dist/index.js
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
