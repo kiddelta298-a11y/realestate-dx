@@ -2,6 +2,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { authRoutes } from "./routes/auth.js";
 import { chatRoutes } from "./routes/chat.js";
 import { propertyRoutes } from "./routes/properties.js";
 import { customerRoutes, webhookRoutes } from "./routes/customers.js";
@@ -22,14 +23,27 @@ import { saleCaseRoutes } from "./routes/sale-cases.js";
 import { visitRoutes } from "./routes/visits.js";
 import { iimonRoutes } from "./routes/iimon.js";
 import { suumoRoutes } from "./routes/suumo.js";
+import { mediaPostRoutes } from "./routes/media-posts.js";
 
 const app = new Hono();
 
 app.use("*", logger());
+const allowedOrigins = (
+  process.env.ALLOWED_ORIGINS ??
+  "http://localhost:3000,http://localhost:3003"
+).split(",").map((o) => o.trim());
+
 app.use(
   "*",
   cors({
-    origin: ["http://localhost:3000", "http://localhost:3003"],
+    origin: (origin) => {
+      if (!origin) return origin; // server-to-server requests
+      if (allowedOrigins.some((o) => o === "*" || o === origin)) return origin;
+      return null;
+    },
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
 
@@ -40,6 +54,9 @@ app.get("/", (c) => {
 app.get("/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });
 });
+
+// Auth
+app.route("/api/auth", authRoutes);
 
 // Phase 0: チャット自動対応 API
 app.route("/api/chat", chatRoutes);
@@ -90,6 +107,7 @@ app.route("/api/ai", aiRoutes);
 // Phase 6: iimon連携 + SUUMO自動投稿
 app.route("/api/iimon", iimonRoutes);
 app.route("/api/suumo", suumoRoutes);
+app.route("/api/media-posts", mediaPostRoutes);
 
 const port = Number(process.env.PORT) || 3001;
 console.log(`Backend running on http://localhost:${port}`);

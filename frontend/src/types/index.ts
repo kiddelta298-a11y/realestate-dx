@@ -60,7 +60,7 @@ export type Customer = {
 
 // タスク
 export type TaskPriority = "high" | "medium" | "low";
-export type TaskApiStatus = "pending" | "in_progress" | "done" | "cancelled";
+export type TaskApiStatus = "pending" | "in_progress" | "done" | "cancelled" | "auto_completed";
 export type TaskType = "follow_up" | "viewing" | "contract" | "other";
 
 export type Task = {
@@ -143,6 +143,7 @@ export const taskStatusLabel: Record<TaskApiStatus, string> = {
   in_progress: "進行中",
   done: "完了",
   cancelled: "キャンセル",
+  auto_completed: "自動対応完了済み",
 };
 
 export const priorityLabel: Record<TaskPriority, string> = {
@@ -240,7 +241,7 @@ export type PropertyRecommendation = {
 
 // === Phase 3: Web申込 ===
 
-export type ApplicationStatus = "draft" | "submitted" | "screening" | "approved" | "rejected" | "cancelled";
+export type ApplicationStatus = "pending" | "screening" | "approved" | "rejected" | "cancelled";
 
 export type Application = {
   id: string;
@@ -248,22 +249,17 @@ export type Application = {
   customerId: string;
   propertyId: string;
   status: ApplicationStatus;
-  applicantName: string;
-  applicantEmail: string;
-  applicantPhone: string;
-  employer: string | null;
-  annualIncome: number | null;
   desiredMoveIn: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
-  customer?: { id: string; name: string };
+  customer?: { id: string; name: string; email: string | null; phone: string | null };
   property?: { id: string; name: string; address: string; rent: number };
+  assignedUser?: { id: string; name: string } | null;
 };
 
 export const applicationStatusLabel: Record<ApplicationStatus, string> = {
-  draft: "下書き",
-  submitted: "提出済",
+  pending: "審査待ち",
   screening: "審査中",
   approved: "承認",
   rejected: "却下",
@@ -272,7 +268,7 @@ export const applicationStatusLabel: Record<ApplicationStatus, string> = {
 
 // === Phase 3: 電子契約 ===
 
-export type ContractStatus = "draft" | "pending_signature" | "signed" | "completed" | "cancelled";
+export type ContractStatus = "draft" | "sent" | "signed" | "cancelled";
 
 export type Contract = {
   id: string;
@@ -281,30 +277,32 @@ export type Contract = {
   propertyId: string;
   customerId: string;
   status: ContractStatus;
-  documentUrl: string | null;
+  rentAmount: number;
+  depositAmount: number;
+  keyMoneyAmount: number;
+  leaseStartDate: string | null;
+  leaseEndDate: string | null;
+  pdfUrl: string | null;
   signedAt: string | null;
-  startDate: string;
-  endDate: string;
-  monthlyRent: number;
-  deposit: number;
-  keyMoney: number;
+  sentAt: string | null;
   createdAt: string;
   updatedAt: string;
-  customer?: { id: string; name: string };
-  property?: { id: string; name: string; address: string };
+  application?: {
+    customer: { id: string; name: string; email: string | null };
+    property: { id: string; name: string; address: string };
+  };
 };
 
 export const contractStatusLabel: Record<ContractStatus, string> = {
   draft: "作成中",
-  pending_signature: "署名待ち",
+  sent: "送信済",
   signed: "署名済",
-  completed: "完了",
   cancelled: "取消",
 };
 
 // === Phase 3: 内見予約 ===
 
-export type ViewingStatus = "scheduled" | "completed" | "cancelled" | "no_show";
+export type ViewingStatus = "confirmed" | "completed" | "cancelled" | "no_show";
 
 export type Viewing = {
   id: string;
@@ -321,16 +319,19 @@ export type Viewing = {
   customer?: { id: string; name: string };
   property?: { id: string; name: string; address: string };
   assignedUser?: { id: string; name: string } | null;
+  slot?: { id: string; date: string; startTime: string; endTime: string; userId: string };
 };
 
 export const viewingStatusLabel: Record<ViewingStatus, string> = {
-  scheduled: "予約済",
+  confirmed: "予約済",
   completed: "完了",
   cancelled: "キャンセル",
   no_show: "無断欠席",
 };
 
 // === Phase 4: 入居者管理 ===
+
+export type TenantStatus = "active" | "notice_given" | "vacated";
 
 export type Tenant = {
   id: string;
@@ -341,21 +342,29 @@ export type Tenant = {
   name: string;
   email: string | null;
   phone: string | null;
-  emergencyContact: string | null;
-  emergencyPhone: string | null;
-  guarantorName: string | null;
-  guarantorPhone: string | null;
-  moveInDate: string;
+  emergencyContact: Record<string, string> | null;
+  guarantorInfo: Record<string, string> | null;
+  leaseStartDate: string;
+  leaseEndDate: string;
+  rentAmount: number;
+  managementFee: number;
+  status: TenantStatus;
+  moveInDate: string | null;
   moveOutDate: string | null;
-  isActive: boolean;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
-  property?: { id: string; name: string; address: string; rent: number };
+};
+
+export const tenantStatusLabel: Record<TenantStatus, string> = {
+  active: "入居中",
+  notice_given: "退去予告",
+  vacated: "退去済",
 };
 
 // === Phase 4: 家賃管理 ===
 
-export type InvoiceStatus = "unpaid" | "paid" | "overdue" | "partial";
+export type InvoiceStatus = "pending" | "paid" | "overdue" | "partial" | "cancelled";
 
 export type RentInvoice = {
   id: string;
@@ -363,55 +372,61 @@ export type RentInvoice = {
   tenantId: string;
   propertyId: string;
   billingMonth: string;
-  amount: number;
-  paidAmount: number;
+  rentAmount: number;
+  managementFee: number;
+  otherCharges: number;
+  totalAmount: number;
+  paidAmount: number | null;
+  paymentMethod: string | null;
   status: InvoiceStatus;
   dueDate: string;
   paidAt: string | null;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
-  tenant?: { id: string; name: string };
-  property?: { id: string; name: string };
+  tenant?: { id: string; name: string; propertyId: string };
 };
 
 export const invoiceStatusLabel: Record<InvoiceStatus, string> = {
-  unpaid: "未払い",
+  pending: "未払い",
   paid: "支払済",
   overdue: "滞納",
   partial: "一部入金",
+  cancelled: "キャンセル",
 };
 
 // === Phase 4: 契約更新 ===
 
-export type RenewalStatus = "upcoming" | "notified" | "renewed" | "terminated";
+export type RenewalStatus = "pending" | "notified" | "accepted" | "rejected" | "completed";
 
 export type Renewal = {
   id: string;
   companyId: string;
-  contractId: string;
   tenantId: string;
-  propertyId: string;
   currentEndDate: string;
   newEndDate: string | null;
+  newRentAmount: number | null;
+  renewalFee: number;
   status: RenewalStatus;
-  renewalFee: number | null;
   notifiedAt: string | null;
+  respondedAt: string | null;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
-  tenant?: { id: string; name: string };
-  property?: { id: string; name: string };
+  tenant?: { id: string; name: string; propertyId: string; leaseEndDate: string };
 };
 
 export const renewalStatusLabel: Record<RenewalStatus, string> = {
-  upcoming: "更新予定",
+  pending: "更新予定",
   notified: "通知済",
-  renewed: "更新完了",
-  terminated: "解約",
+  accepted: "承諾",
+  rejected: "拒否",
+  completed: "更新完了",
 };
 
 // === Phase 4: 退去管理 ===
 
-export type VacationStatus = "requested" | "inspection_scheduled" | "inspected" | "deposit_settled" | "completed";
+export type VacationStatus = "requested" | "confirmed" | "inspection_scheduled" | "restoration_in_progress" | "completed";
 
 export type Vacation = {
   id: string;
@@ -422,21 +437,20 @@ export type Vacation = {
   actualMoveOut: string | null;
   status: VacationStatus;
   inspectionDate: string | null;
-  depositReturn: number | null;
-  deductions: number | null;
-  checklist: { item: string; checked: boolean }[];
+  restorationCost: number | null;
+  depositRefund: number | null;
+  restorationNotes: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
-  tenant?: { id: string; name: string };
-  property?: { id: string; name: string };
+  tenant?: { id: string; name: string; propertyId: string };
 };
 
 export const vacationStatusLabel: Record<VacationStatus, string> = {
   requested: "退去申請",
+  confirmed: "確認済",
   inspection_scheduled: "立会予定",
-  inspected: "立会完了",
-  deposit_settled: "精算済",
+  restoration_in_progress: "原状回復中",
   completed: "退去完了",
 };
 
@@ -589,4 +603,126 @@ export const comebackStyleLabel: Record<ComebackStyle, string> = {
   formal: "フォーマル",
   casual: "カジュアル",
   passionate: "熱意型",
+};
+
+// === Chat (チャット) ===
+
+export type ChatSession = {
+  id: string;
+  companyId: string;
+  customerId: string;
+  assignedUserId: string | null;
+  channel: string;
+  isAiActive: boolean;
+  startedAt: string;
+  endedAt: string | null;
+  customer?: { id: string; name: string; email: string | null };
+};
+
+export type ChatMessage = {
+  id: string;
+  companyId: string;
+  sessionId: string;
+  senderType: "customer" | "ai" | "agent";
+  senderId: string | null;
+  content: string;
+  isDraft: boolean;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+// === 売上・目標 ===
+
+export type MonthlySales = {
+  confirmedSales: number;
+  monthlyTarget: number;
+  progressRate: number;
+  byAgent?: AgentSales[];
+};
+
+export type AgentSales = {
+  userId: string;
+  name: string;
+  confirmedSales: number;
+  monthlyTarget: number;
+  progressRate: number;
+};
+
+export type SalesTargetSettings = {
+  companyTarget: number;
+  agentTargets: { userId: string; name: string; target: number }[];
+};
+
+// === 契約率詳細 ===
+
+export type ContractRateDetail = {
+  overall: { total: number; contracted: number; rate: number };
+  byOffice: { name: string; total: number; contracted: number; rate: number }[];
+  byCompany: { name: string; total: number; contracted: number; rate: number }[];
+  byAgent: { name: string; total: number; contracted: number; rate: number }[];
+};
+
+// === 問い合わせ一覧 ===
+
+export type InquiryItem = {
+  id: string;
+  customerName: string;
+  propertyName: string;
+  source: CustomerSource;
+  taskTitle: string;
+  taskStatus: TaskApiStatus;
+  createdAt: string;
+};
+
+// === 設定 ===
+
+export type SenderSettings = {
+  id?: string;
+  companyName: string;
+  emailAddress: string;
+  emailPassword: string;
+  emailSmtpHost: string;
+  emailSmtpPort: number;
+  lineChannelId: string;
+  lineChannelSecret: string;
+  lineAccessToken: string;
+};
+
+export type ExternalServiceSettings = {
+  id?: string;
+  serviceName: string;
+  loginId: string;
+  loginPassword: string;
+  apiKey: string;
+  notes: string;
+};
+
+// === 担当者マスタ ===
+
+export type PermissionLevel = "admin" | "manager" | "member" | "viewer";
+
+export const permissionLabel: Record<PermissionLevel, string> = {
+  admin: "管理者（全権限）",
+  manager: "マネージャー",
+  member: "メンバー",
+  viewer: "閲覧のみ",
+};
+
+export type StaffMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  permission: PermissionLevel;
+  status: "active" | "invited" | "disabled";
+  inviteToken?: string;
+};
+
+export type Invitation = {
+  id: string;
+  email: string;
+  permission: PermissionLevel;
+  token: string;
+  createdAt: string;
+  accepted: boolean;
 };

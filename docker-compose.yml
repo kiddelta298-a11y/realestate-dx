@@ -32,6 +32,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-realestate}:${POSTGRES_PASSWORD:-realestate_dev}@db:5432/${POSTGRES_DB:-realestate_dx}
       NODE_ENV: development
       PORT: 3001
+      JWT_SECRET: ${JWT_SECRET:-realestate-dx-dev-secret-change-in-production}
+      ADMIN_SETUP_SECRET: ${ADMIN_SETUP_SECRET:-setup-secret-change-me}
     volumes:
       - ./backend:/app
       - backend_node_modules:/app/node_modules

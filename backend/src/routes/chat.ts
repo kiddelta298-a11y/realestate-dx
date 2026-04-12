@@ -148,6 +148,43 @@ chatRoutes.post("/auto-reply", async (c) => {
 });
 
 /**
+ * GET /api/chat/sessions
+ * セッション一覧取得
+ */
+chatRoutes.get("/sessions", async (c) => {
+  const companyId = c.req.query("companyId");
+  if (!companyId) return c.json({ error: { code: "VALIDATION_ERROR", message: "companyId required" } }, 400);
+
+  const sessions = await prisma.chatSession.findMany({
+    where: { companyId },
+    include: { customer: { select: { id: true, name: true, email: true } } },
+    orderBy: { startedAt: "desc" },
+    take: 50,
+  });
+
+  return c.json({ data: sessions });
+});
+
+/**
+ * POST /api/chat/sessions
+ * セッション作成
+ */
+chatRoutes.post("/sessions", async (c) => {
+  const body = await c.req.json();
+  const { companyId, customerId, assignedUserId, channel } = body;
+  if (!companyId || !customerId) {
+    return c.json({ error: { code: "VALIDATION_ERROR", message: "companyId and customerId required" } }, 400);
+  }
+
+  const session = await prisma.chatSession.create({
+    data: { companyId, customerId, assignedUserId: assignedUserId ?? null, channel: channel ?? "web" },
+    include: { customer: { select: { id: true, name: true, email: true } } },
+  });
+
+  return c.json({ data: session }, 201);
+});
+
+/**
  * GET /api/chat/sessions/:id/messages
  *
  * チャット履歴取得

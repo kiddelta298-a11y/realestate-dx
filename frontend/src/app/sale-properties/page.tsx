@@ -189,13 +189,13 @@ export default function SalePropertiesPage() {
       />
 
       {/* Filters */}
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4 flex-wrap">
         <input
           type="text"
           placeholder="物件名・住所で検索..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm w-80 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <select
           value={statusFilter}
@@ -212,17 +212,18 @@ export default function SalePropertiesPage() {
       </div>
 
       {/* Table */}
+      <div className="overflow-x-auto">
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">物件名</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">住所</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">住所</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">価格(万円)</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">種別</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">土地面積</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">建物面積</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">間取り</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">種別</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">土地面積</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">建物面積</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">間取り</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">状態</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">操作</th>
             </tr>
@@ -231,18 +232,18 @@ export default function SalePropertiesPage() {
             {filtered.map((p) => (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-medium text-gray-900">{p.name}</td>
-                <td className="px-4 py-3 text-gray-600">{p.address}</td>
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{p.address}</td>
                 <td className="px-4 py-3 text-right text-gray-900">
                   {(p.price / 10000).toLocaleString()}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{propertyTypeLabel[p.propertyType]}</td>
-                <td className="px-4 py-3 text-right text-gray-600">
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{propertyTypeLabel[p.propertyType]}</td>
+                <td className="px-4 py-3 text-right text-gray-600 hidden sm:table-cell">
                   {p.landArea ? `${p.landArea}m\u00B2` : "-"}
                 </td>
-                <td className="px-4 py-3 text-right text-gray-600">
+                <td className="px-4 py-3 text-right text-gray-600 hidden sm:table-cell">
                   {p.buildingArea ? `${p.buildingArea}m\u00B2` : "-"}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{p.roomLayout ?? "-"}</td>
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{p.roomLayout ?? "-"}</td>
                 <td className="px-4 py-3 text-center">
                   <span
                     className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${statusBadgeClass[p.status]}`}
@@ -269,6 +270,7 @@ export default function SalePropertiesPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {/* Modal */}

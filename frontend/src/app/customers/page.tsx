@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
 import { fetchCustomers, updateCustomer } from "@/lib/api";
 import type { Customer, CustomerApiStatus } from "@/types";
@@ -63,6 +64,7 @@ function StatusPipeline({ current }: { current: CustomerApiStatus }) {
 }
 
 export default function CustomersPage() {
+  const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,13 +139,13 @@ export default function CustomersPage() {
       />
 
       {/* Filters */}
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4 flex-wrap">
         <input
           type="text"
           placeholder="名前・メール・電話・反響元で検索..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm w-80 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <select
           value={statusFilter}
@@ -160,41 +162,42 @@ export default function CustomersPage() {
       </div>
 
       {/* Table */}
+      <div className="overflow-x-auto">
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">名前</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">メール</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">電話</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">メール</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">電話</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">ステータス</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">進捗</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">反響元</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">担当者</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">更新日</th>
+              <th className="text-center px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">進捗</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">反響元</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">担当者</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">更新日</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">変更</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filtered.map((c) => (
-              <tr key={c.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-medium text-gray-900">{c.name}</td>
-                <td className="px-4 py-3 text-gray-600">{c.email ?? "-"}</td>
-                <td className="px-4 py-3 text-gray-600">{c.phone ?? "-"}</td>
+              <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/customers/${c.id}/message`)}>
+                <td className="px-4 py-3 font-medium text-blue-600 hover:text-blue-800 underline">{c.name}</td>
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{c.email ?? "-"}</td>
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{c.phone ?? "-"}</td>
                 <td className="px-4 py-3 text-center">
                   <StatusBadge status={c.status} />
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-3 hidden sm:table-cell">
                   <div className="flex justify-center">
                     <StatusPipeline current={c.status} />
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-600">{customerSourceLabel[c.source]}</td>
-                <td className="px-4 py-3 text-gray-600">{c.assignedUser?.name ?? "未割当"}</td>
-                <td className="px-4 py-3 text-gray-600">
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{customerSourceLabel[c.source]}</td>
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{c.assignedUser?.name ?? "未割当"}</td>
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">
                   {c.updatedAt ? new Date(c.updatedAt).toLocaleDateString("ja-JP") : "-"}
                 </td>
-                <td className="px-4 py-3 text-center">
+                <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                   <select
                     value={c.status}
                     onChange={(e) =>
@@ -220,6 +223,7 @@ export default function CustomersPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

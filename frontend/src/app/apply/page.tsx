@@ -2,72 +2,73 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/page-header";
-import { fetchProperties, createApplication } from "@/lib/api";
-import type { Property } from "@/types";
+import { fetchProperties, fetchCustomers, createApplication } from "@/lib/api";
+import type { Property, Customer } from "@/types";
 
 type ApplicationForm = {
   propertyId: string;
-  applicantName: string;
-  applicantEmail: string;
-  applicantPhone: string;
-  employer: string;
-  annualIncome: string;
+  customerId: string;
   desiredMoveIn: string;
   notes: string;
 };
 
 const emptyForm: ApplicationForm = {
   propertyId: "",
-  applicantName: "",
-  applicantEmail: "",
-  applicantPhone: "",
-  employer: "",
-  annualIncome: "",
+  customerId: "",
   desiredMoveIn: "",
   notes: "",
 };
 
 export default function ApplyPage() {
   const [properties, setProperties] = useState<Property[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [form, setForm] = useState<ApplicationForm>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submittedInfo, setSubmittedInfo] = useState<{ customerName: string; propertyName: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const loadProperties = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
-      const res = await fetchProperties({ status: "available", limit: 100 });
-      setProperties(res.data);
+      const [pRes, cRes] = await Promise.all([
+        fetchProperties({ status: "available", limit: 100 }),
+        fetchCustomers({ limit: 100 }),
+      ]);
+      setProperties(pRes.data);
+      setCustomers(cRes.data);
     } catch {
       setProperties([]);
+      setCustomers([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadProperties();
-  }, [loadProperties]);
+    loadData();
+  }, [loadData]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.propertyId || !form.applicantName || !form.applicantEmail || !form.applicantPhone) {
-      setError("必須項目を入力してください");
+    if (!form.propertyId || !form.customerId) {
+      setError("顧客と物件を選択してください");
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
       await createApplication({
+        customerId: form.customerId,
         propertyId: form.propertyId,
-        applicantName: form.applicantName,
-        applicantEmail: form.applicantEmail,
-        applicantPhone: form.applicantPhone,
-        employer: form.employer || undefined,
-        annualIncome: form.annualIncome ? Number(form.annualIncome) : undefined,
         desiredMoveIn: form.desiredMoveIn || undefined,
         notes: form.notes || undefined,
+      });
+      const customer = customers.find((c) => c.id === form.customerId);
+      const property = properties.find((p) => p.id === form.propertyId);
+      setSubmittedInfo({
+        customerName: customer?.name ?? form.customerId,
+        propertyName: property?.name ?? form.propertyId,
       });
       setSubmitted(true);
     } catch (e) {
@@ -77,7 +78,7 @@ export default function ApplyPage() {
     }
   }
 
-  if (submitted) {
+  if (submitted && submittedInfo) {
     return (
       <div>
         <PageHeader title="Web申込" description="物件への入居申込" />
@@ -85,17 +86,17 @@ export default function ApplyPage() {
           <div className="text-5xl mb-4">&#x2705;</div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">申込を受け付けました</h2>
           <p className="text-gray-600 mb-4">
-            審査結果は3〜5営業日以内にメールでご連絡いたします。
+            審査結果は3〜5営業日以内にご連絡いたします。
           </p>
           <p className="text-sm text-gray-500 mb-6">
-            申込者: {form.applicantName}<br />
-            メール: {form.applicantEmail}
+            申込者: {submittedInfo.customerName}<br />
+            物件: {submittedInfo.propertyName}
           </p>
           <button
-            onClick={() => { setSubmitted(false); setForm(emptyForm); }}
+            onClick={() => { setSubmitted(false); setSubmittedInfo(null); setForm(emptyForm); }}
             className="text-blue-600 hover:text-blue-800 text-sm font-medium"
           >
-            別の物件に申込む
+            別の申込を作成
           </button>
         </div>
       </div>
@@ -112,7 +113,7 @@ export default function ApplyPage() {
 
   return (
     <div>
-      <PageHeader title="Web申込" description="物件への入居申込フォーム" />
+      <PageHeader title="Web申込" description="入居申込の作成" />
 
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 max-w-2xl">
         {error && (
@@ -121,84 +122,45 @@ export default function ApplyPage() {
           </div>
         )}
 
-        <h3 className="text-sm font-bold text-gray-700 mb-3 border-b pb-2">物件選択</h3>
-        <div className="mb-6">
-          <select
-            value={form.propertyId}
-            onChange={(e) => setForm({ ...form, propertyId: e.target.value })}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          >
-            <option value="">物件を選択してください</option>
-            {properties.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} - {p.address} ({p.rent.toLocaleString()}円/月)
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <h3 className="text-sm font-bold text-gray-700 mb-3 border-b pb-2">申込者情報</h3>
-        <div className="space-y-3 mb-6">
+        <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              氏名 <span className="text-red-500">*</span>
+              顧客 <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              value={form.applicantName}
-              onChange={(e) => setForm({ ...form, applicantName: e.target.value })}
+            <select
+              value={form.customerId}
+              onChange={(e) => setForm({ ...form, customerId: e.target.value })}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
-            />
+            >
+              <option value="">顧客を選択してください</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}{c.email ? ` (${c.email})` : ""}
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                メールアドレス <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="email"
-                value={form.applicantEmail}
-                onChange={(e) => setForm({ ...form, applicantEmail: e.target.value })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                電話番号 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="tel"
-                value={form.applicantPhone}
-                onChange={(e) => setForm({ ...form, applicantPhone: e.target.value })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              物件 <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={form.propertyId}
+              onChange={(e) => setForm({ ...form, propertyId: e.target.value })}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            >
+              <option value="">物件を選択してください</option>
+              {properties.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} - {p.address} ({p.rent.toLocaleString()}円/月)
+                </option>
+              ))}
+            </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">勤務先</label>
-              <input
-                type="text"
-                value={form.employer}
-                onChange={(e) => setForm({ ...form, employer: e.target.value })}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">年収 (万円)</label>
-              <input
-                type="number"
-                value={form.annualIncome}
-                onChange={(e) => setForm({ ...form, annualIncome: e.target.value })}
-                placeholder="500"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">希望入居日</label>
             <input
@@ -208,6 +170,7 @@ export default function ApplyPage() {
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">備考</label>
             <textarea
@@ -220,7 +183,7 @@ export default function ApplyPage() {
           </div>
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex justify-end mt-6">
           <button
             type="submit"
             disabled={submitting}

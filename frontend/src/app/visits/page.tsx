@@ -133,13 +133,13 @@ export default function VisitsPage() {
       />
 
       {/* Filters */}
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4 flex-wrap">
         <input
           type="text"
           placeholder="顧客名で検索..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm w-80 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <select
           value={resultFilter}
@@ -156,17 +156,18 @@ export default function VisitsPage() {
       </div>
 
       {/* Table */}
+      <div className="overflow-x-auto">
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">来店日</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">顧客名</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">担当者</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">来店経路</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">目的</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">担当者</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">来店経路</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">目的</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">結果</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">備考</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">備考</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -176,13 +177,13 @@ export default function VisitsPage() {
                 <td className="px-4 py-3 font-medium text-gray-900">
                   {v.customer?.name ?? "-"}
                 </td>
-                <td className="px-4 py-3 text-gray-600">
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">
                   {v.assignedUser?.name ?? "-"}
                 </td>
-                <td className="px-4 py-3 text-gray-600">
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">
                   {visitChannelLabel[v.channel]}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{visitPurposeLabel[v.purpose]}</td>
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{visitPurposeLabel[v.purpose]}</td>
                 <td className="px-4 py-3 text-center">
                   {v.result ? (
                     <span
@@ -194,7 +195,7 @@ export default function VisitsPage() {
                     <span className="text-gray-400">-</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-gray-600">{v.notes ?? "-"}</td>
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{v.notes ?? "-"}</td>
               </tr>
             ))}
             {filtered.length === 0 && (
@@ -206,6 +207,7 @@ export default function VisitsPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {/* Modal */}

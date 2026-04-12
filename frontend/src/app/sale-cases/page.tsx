@@ -176,13 +176,13 @@ export default function SaleCasesPage() {
       />
 
       {/* Filters */}
-      <div className="flex items-center gap-4 mb-4 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4 flex-wrap">
         <input
           type="text"
           placeholder="物件名・顧客名・担当者で検索..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm w-80 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full sm:w-80 focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <select
           value={statusFilter}
@@ -211,16 +211,17 @@ export default function SaleCasesPage() {
       </div>
 
       {/* Table */}
+      <div className="overflow-x-auto">
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">物件名</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">顧客名</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">担当者</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">提示価格(万円)</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">担当者</th>
+              <th className="text-right px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">提示価格(万円)</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">ステータス</th>
-              <th className="text-center px-4 py-3 font-medium text-gray-600">更新日</th>
+              <th className="text-center px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">更新日</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">操作</th>
             </tr>
           </thead>
@@ -233,10 +234,10 @@ export default function SaleCasesPage() {
                 <td className="px-4 py-3 text-gray-600">
                   {c.customer?.name ?? c.customerId}
                 </td>
-                <td className="px-4 py-3 text-gray-600">
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">
                   {c.assignedUser?.name ?? c.assignedUserId ?? "-"}
                 </td>
-                <td className="px-4 py-3 text-right text-gray-900">
+                <td className="px-4 py-3 text-right text-gray-900 hidden sm:table-cell">
                   {c.offerPrice != null ? c.offerPrice.toLocaleString() : "-"}
                 </td>
                 <td className="px-4 py-3 text-center">
@@ -246,7 +247,7 @@ export default function SaleCasesPage() {
                     {saleCaseStatusLabel[c.status]}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-center text-gray-600">
+                <td className="px-4 py-3 text-center text-gray-600 hidden sm:table-cell">
                   {c.updatedAt
                     ? new Date(c.updatedAt).toLocaleDateString("ja-JP")
                     : "-"}
@@ -270,6 +271,7 @@ export default function SaleCasesPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {/* Modal */}

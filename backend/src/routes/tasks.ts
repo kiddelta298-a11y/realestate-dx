@@ -24,14 +24,14 @@ const updateTaskSchema = z.object({
   title: z.string().min(1).max(255).optional(),
   description: z.string().optional(),
   priority: z.enum(["high", "medium", "low"]).optional(),
-  status: z.enum(["pending", "in_progress", "done", "cancelled"]).optional(),
+  status: z.enum(["pending", "in_progress", "done", "cancelled", "auto_completed"]).optional(),
   dueDate: z.string().date().nullable().optional(),
 });
 
 const listQuerySchema = z.object({
   companyId: z.string().uuid(),
   assignedUserId: z.string().uuid().optional(),
-  status: z.enum(["pending", "in_progress", "done", "cancelled"]).optional(),
+  status: z.enum(["pending", "in_progress", "done", "cancelled", "auto_completed"]).optional(),
   taskType: z.string().optional(),
   priority: z.enum(["high", "medium", "low"]).optional(),
   dueBefore: z.string().date().optional(),
@@ -147,7 +147,7 @@ taskRoutes.put("/:id", async (c) => {
     data: {
       ...rest,
       ...(status ? { status } : {}),
-      ...(status === "done" ? { completedAt: new Date() } : {}),
+      ...(status === "done" || status === "auto_completed" ? { completedAt: new Date() } : {}),
       ...(dueDate !== undefined ? { dueDate: dueDate ? new Date(dueDate) : null } : {}),
     },
     include: { assignedUser: { select: { id: true, name: true } } },

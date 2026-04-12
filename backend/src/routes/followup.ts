@@ -25,7 +25,7 @@ const createSequenceSchema = z.object({
     channel: z.enum(["email", "line", "task"]),
     templateBody: z.string().min(1),
     subject: z.string().max(255).optional(),
-  })).min(1),
+  })).default([]),
 });
 
 const updateSequenceSchema = z.object({
@@ -113,6 +113,34 @@ followupRoutes.post("/schedule", async (c) => {
 });
 
 // ---------------------------------------------------------------
+// GET /api/followup/executions - 実行履歴一覧
+// ---------------------------------------------------------------
+
+followupRoutes.get("/executions", async (c) => {
+  const companyId = c.req.query("companyId");
+  const status = c.req.query("status") as string | undefined;
+
+  if (!companyId) {
+    return c.json({ error: { code: "VALIDATION_ERROR", message: "companyId は必須です" } }, 400);
+  }
+
+  const where: Record<string, unknown> = { companyId };
+  if (status) where.status = status;
+
+  const executions = await prisma.followupExecution.findMany({
+    where,
+    include: {
+      sequence: { select: { id: true, name: true } },
+      step: { select: { id: true, stepOrder: true, channel: true, subject: true } },
+    },
+    orderBy: { scheduledAt: "desc" },
+    take: 100,
+  });
+
+  return c.json({ data: executions, total: executions.length });
+});
+
+// ---------------------------------------------------------------
 // GET /api/followup/pending - 未実行の追客タスク一覧
 // ---------------------------------------------------------------
 
@@ -195,6 +223,22 @@ followupRoutes.post("/executions/:id/execute", async (c) => {
       executedAt: new Date(),
     },
   });
+
+  // 自動対応完了: 関連する顧客のタスクを「自動対応完了済み」に更新
+  if (execution.customerId) {
+    await prisma.task.updateMany({
+      where: {
+        customerId: execution.customerId,
+        companyId: execution.companyId,
+        taskType: "follow_up",
+        status: { in: ["pending", "in_progress"] },
+      },
+      data: {
+        status: "auto_completed",
+        completedAt: new Date(),
+      },
+    });
+  }
 
   return c.json({ data: updated });
 });

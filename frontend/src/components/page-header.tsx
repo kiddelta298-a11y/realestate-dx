@@ -1,3 +1,5 @@
+import { BackButton } from "./back-button";
+
 type Props = {
   title: string;
   description?: string;
@@ -6,14 +8,17 @@ type Props = {
 
 export function PageHeader({ title, description, actions }: Props) {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-        {description && (
-          <p className="text-sm text-gray-500 mt-1">{description}</p>
-        )}
+    <div className="mb-6">
+      <BackButton />
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+          {description && (
+            <p className="text-sm text-gray-500 mt-0.5">{description}</p>
+          )}
+        </div>
+        {actions && <div className="flex gap-2 shrink-0 ml-4">{actions}</div>}
       </div>
-      {actions && <div className="flex gap-2">{actions}</div>}
     </div>
   );
 }

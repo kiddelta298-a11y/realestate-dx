@@ -7,8 +7,7 @@ import type { Application, ApplicationStatus } from "@/types";
 import { applicationStatusLabel } from "@/types";
 
 const statusColors: Record<ApplicationStatus, string> = {
-  draft: "bg-gray-100 text-gray-600",
-  submitted: "bg-blue-100 text-blue-700",
+  pending: "bg-gray-100 text-gray-600",
   screening: "bg-yellow-100 text-yellow-700",
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
@@ -85,7 +84,7 @@ export default function ApplicationsPage() {
       <PageHeader title="申込管理" description="入居申込の一覧・審査ステータス管理" />
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">全申込</p>
           <p className="text-2xl font-bold text-gray-900">{applications.length}</p>
@@ -101,7 +100,7 @@ export default function ApplicationsPage() {
       </div>
 
       {/* Filter */}
-      <div className="flex items-center gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         <span className="text-sm text-gray-600">ステータス:</span>
         <button
           onClick={() => setFilterStatus("")}
@@ -109,7 +108,7 @@ export default function ApplicationsPage() {
         >
           すべて
         </button>
-        {(["submitted", "screening", "approved", "rejected"] as ApplicationStatus[]).map((s) => (
+        {(["pending", "screening", "approved", "rejected"] as ApplicationStatus[]).map((s) => (
           <button
             key={s}
             onClick={() => setFilterStatus(s)}
@@ -121,16 +120,17 @@ export default function ApplicationsPage() {
       </div>
 
       {/* Table */}
+      <div className="overflow-x-auto">
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
               <th className="text-left px-4 py-3 font-medium text-gray-600">申込者</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">物件</th>
-              <th className="text-right px-4 py-3 font-medium text-gray-600">年収</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">希望入居日</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">連絡先</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">希望入居日</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">ステータス</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">申込日</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">申込日</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">操作</th>
             </tr>
           </thead>
@@ -142,9 +142,8 @@ export default function ApplicationsPage() {
                     onClick={() => setDetailApp(app)}
                     className="font-medium text-blue-600 hover:text-blue-800"
                   >
-                    {app.applicantName}
+                    {app.customer?.name ?? app.customerId}
                   </button>
-                  <p className="text-xs text-gray-500">{app.applicantEmail}</p>
                 </td>
                 <td className="px-4 py-3 text-gray-700">
                   {app.property?.name ?? app.propertyId}
@@ -154,10 +153,11 @@ export default function ApplicationsPage() {
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-right text-gray-700">
-                  {app.annualIncome ? `${(app.annualIncome / 10000).toLocaleString()}万円` : "-"}
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">
+                  <div className="text-xs">{app.customer?.email ?? "-"}</div>
+                  <div className="text-xs">{app.customer?.phone ?? "-"}</div>
                 </td>
-                <td className="px-4 py-3 text-gray-600">
+                <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">
                   {app.desiredMoveIn ?? "-"}
                 </td>
                 <td className="px-4 py-3 text-center">
@@ -165,7 +165,7 @@ export default function ApplicationsPage() {
                     {applicationStatusLabel[app.status]}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-gray-500 text-xs">
+                <td className="px-4 py-3 text-gray-500 text-xs hidden sm:table-cell">
                   {new Date(app.createdAt).toLocaleDateString("ja-JP")}
                 </td>
                 <td className="px-4 py-3 text-center">
@@ -174,7 +174,7 @@ export default function ApplicationsPage() {
                     onChange={(e) => handleStatusChange(app.id, e.target.value as ApplicationStatus)}
                     className="border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                   >
-                    <option value="submitted">提出済</option>
+                    <option value="pending">審査待ち</option>
                     <option value="screening">審査中</option>
                     <option value="approved">承認</option>
                     <option value="rejected">却下</option>
@@ -193,6 +193,7 @@ export default function ApplicationsPage() {
           </tbody>
         </table>
       </div>
+      </div>
 
       {/* Detail Modal */}
       {detailApp && (
@@ -207,25 +208,15 @@ export default function ApplicationsPage() {
             <dl className="space-y-2 text-sm">
               <div className="grid grid-cols-3">
                 <dt className="text-gray-500">氏名</dt>
-                <dd className="col-span-2 text-gray-900 font-medium">{detailApp.applicantName}</dd>
+                <dd className="col-span-2 text-gray-900 font-medium">{detailApp.customer?.name ?? detailApp.customerId}</dd>
               </div>
               <div className="grid grid-cols-3">
                 <dt className="text-gray-500">メール</dt>
-                <dd className="col-span-2 text-gray-700">{detailApp.applicantEmail}</dd>
+                <dd className="col-span-2 text-gray-700">{detailApp.customer?.email ?? "-"}</dd>
               </div>
               <div className="grid grid-cols-3">
                 <dt className="text-gray-500">電話</dt>
-                <dd className="col-span-2 text-gray-700">{detailApp.applicantPhone}</dd>
-              </div>
-              <div className="grid grid-cols-3">
-                <dt className="text-gray-500">勤務先</dt>
-                <dd className="col-span-2 text-gray-700">{detailApp.employer ?? "-"}</dd>
-              </div>
-              <div className="grid grid-cols-3">
-                <dt className="text-gray-500">年収</dt>
-                <dd className="col-span-2 text-gray-700">
-                  {detailApp.annualIncome ? `${(detailApp.annualIncome / 10000).toLocaleString()}万円` : "-"}
-                </dd>
+                <dd className="col-span-2 text-gray-700">{detailApp.customer?.phone ?? "-"}</dd>
               </div>
               <div className="grid grid-cols-3">
                 <dt className="text-gray-500">物件</dt>

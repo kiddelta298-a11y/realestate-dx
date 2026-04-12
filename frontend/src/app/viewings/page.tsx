@@ -14,7 +14,7 @@ import type { Viewing, ViewingStatus, Property, Customer } from "@/types";
 import { viewingStatusLabel } from "@/types";
 
 const statusColors: Record<ViewingStatus, string> = {
-  scheduled: "bg-blue-100 text-blue-700",
+  confirmed: "bg-blue-100 text-blue-700",
   completed: "bg-green-100 text-green-700",
   cancelled: "bg-gray-100 text-gray-500",
   no_show: "bg-red-100 text-red-700",
@@ -245,7 +245,7 @@ export default function ViewingsPage() {
       />
 
       {/* Controls */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-2">
           <button
             onClick={navigatePrev}
@@ -397,6 +397,7 @@ export default function ViewingsPage() {
       {/* Upcoming Viewings List */}
       <div className="mt-6">
         <h3 className="text-sm font-bold text-gray-700 mb-3">直近の内見予約</h3>
+        <div className="overflow-x-auto">
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
@@ -404,7 +405,7 @@ export default function ViewingsPage() {
                 <th className="text-left px-4 py-2 font-medium text-gray-600">日時</th>
                 <th className="text-left px-4 py-2 font-medium text-gray-600">顧客</th>
                 <th className="text-left px-4 py-2 font-medium text-gray-600">物件</th>
-                <th className="text-left px-4 py-2 font-medium text-gray-600">担当</th>
+                <th className="text-left px-4 py-2 font-medium text-gray-600 hidden sm:table-cell">担当</th>
                 <th className="text-center px-4 py-2 font-medium text-gray-600">ステータス</th>
                 <th className="text-center px-4 py-2 font-medium text-gray-600">操作</th>
               </tr>
@@ -430,7 +431,7 @@ export default function ViewingsPage() {
                     <td className="px-4 py-2 text-gray-700">
                       {v.property?.name ?? v.propertyId}
                     </td>
-                    <td className="px-4 py-2 text-gray-600">
+                    <td className="px-4 py-2 text-gray-600 hidden sm:table-cell">
                       {v.assignedUser?.name ?? "-"}
                     </td>
                     <td className="px-4 py-2 text-center">
@@ -440,7 +441,7 @@ export default function ViewingsPage() {
                     </td>
                     <td className="px-4 py-2 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        {v.status === "scheduled" && (
+                        {v.status === "confirmed" && (
                           <>
                             <button
                               onClick={() => handleComplete(v.id)}
@@ -462,6 +463,7 @@ export default function ViewingsPage() {
                 ))}
             </tbody>
           </table>
+        </div>
         </div>
       </div>
 

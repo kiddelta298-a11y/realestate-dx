@@ -39,6 +39,18 @@ import type {
   AnalyticsSummary,
   ComebackStyle,
   ComebackResponse,
+  ChatSession,
+  ChatMessage,
+  MonthlySales,
+  AgentSales,
+  SalesTargetSettings,
+  ContractRateDetail,
+  InquiryItem,
+  SenderSettings,
+  ExternalServiceSettings,
+  StaffMember,
+  PermissionLevel,
+  Invitation,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -56,9 +68,17 @@ class ApiError extends Error {
   }
 }
 
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("auth_token");
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: { ...headers, ...(options?.headers as Record<string, string> | undefined) },
     ...options,
   });
   if (!res.ok) {
@@ -66,6 +86,27 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     throw new ApiError(res.status, body?.error?.message ?? `API Error: ${res.status}`);
   }
   return res.json();
+}
+
+// === Auth ===
+
+export async function login(email: string, password: string): Promise<{ token: string; user: { id: string; name: string; email: string; role: string; company: { id: string; name: string } } }> {
+  const res = await fetch(`${API_BASE}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, body?.error?.message ?? "ログインに失敗しました");
+  }
+  const data = await res.json();
+  return data.data;
+}
+
+export async function fetchMe(): Promise<{ id: string; name: string; email: string; role: string; company: { id: string; name: string } }> {
+  const res = await request<{ data: { id: string; name: string; email: string; role: string; company: { id: string; name: string } } }>("/api/auth/me");
+  return res.data;
 }
 
 // === Properties ===
@@ -225,47 +266,11 @@ export async function fetchTaskAlerts(assignedUserId?: string): Promise<{ data: 
   return request(`/api/tasks/alerts/upcoming?${sp}`);
 }
 
-// === Phase 2: Followup Sequences (モック — バックエンドAPI未実装) ===
-
-const MOCK_SEQUENCES: FollowupSequence[] = [
-  {
-    id: "seq1", companyId: DEFAULT_COMPANY_ID, name: "反響初期対応", description: "問い合わせ後の3段階フォロー", triggerEvent: "inquiry", isActive: true, createdAt: "2026-03-01T00:00:00Z", updatedAt: "2026-03-15T00:00:00Z",
-    steps: [
-      { id: "s1", sequenceId: "seq1", stepOrder: 1, delayDays: 0, channel: "email", templateBody: "お問い合わせありがとうございます。ご希望条件をお聞かせください。", subject: "お問い合わせありがとうございます", createdAt: "2026-03-01T00:00:00Z" },
-      { id: "s2", sequenceId: "seq1", stepOrder: 2, delayDays: 3, channel: "line", templateBody: "先日はお問い合わせいただきありがとうございました。ご都合のよい日時に内見はいかがでしょうか？", subject: null, createdAt: "2026-03-01T00:00:00Z" },
-      { id: "s3", sequenceId: "seq1", stepOrder: 3, delayDays: 7, channel: "task", templateBody: "1週間後フォロー電話", subject: null, createdAt: "2026-03-01T00:00:00Z" },
-    ],
-  },
-  {
-    id: "seq2", companyId: DEFAULT_COMPANY_ID, name: "来店後フォロー", description: "来店後の検討サポート", triggerEvent: "visit", isActive: true, createdAt: "2026-03-10T00:00:00Z", updatedAt: "2026-03-20T00:00:00Z",
-    steps: [
-      { id: "s4", sequenceId: "seq2", stepOrder: 1, delayDays: 1, channel: "email", templateBody: "本日はご来店ありがとうございました。気になる物件がございましたらお気軽にどうぞ。", subject: "ご来店ありがとうございました", createdAt: "2026-03-10T00:00:00Z" },
-      { id: "s5", sequenceId: "seq2", stepOrder: 2, delayDays: 5, channel: "line", templateBody: "ご検討状況はいかがでしょうか？新着物件のご案内もございます。", subject: null, createdAt: "2026-03-10T00:00:00Z" },
-    ],
-  },
-  {
-    id: "seq3", companyId: DEFAULT_COMPANY_ID, name: "申込後フォロー", description: "申込後の進捗案内", triggerEvent: "application", isActive: false, createdAt: "2026-03-15T00:00:00Z", updatedAt: "2026-03-25T00:00:00Z",
-    steps: [
-      { id: "s6", sequenceId: "seq3", stepOrder: 1, delayDays: 0, channel: "email", templateBody: "お申し込みを受け付けました。審査結果は3-5営業日以内にご連絡いたします。", subject: "お申し込みありがとうございます", createdAt: "2026-03-15T00:00:00Z" },
-    ],
-  },
-];
-
-const MOCK_EXECUTIONS: FollowupExecution[] = [
-  { id: "ex1", companyId: DEFAULT_COMPANY_ID, sequenceId: "seq1", stepId: "s1", customerId: "c1", status: "sent", scheduledAt: "2026-03-28T10:00:00Z", executedAt: "2026-03-28T10:01:00Z", channel: "email", messageBody: "お問い合わせありがとうございます。", errorMessage: null, createdAt: "2026-03-28T10:00:00Z", customer: { id: "c1", name: "田中太郎" }, sequence: { id: "seq1", name: "反響初期対応" } },
-  { id: "ex2", companyId: DEFAULT_COMPANY_ID, sequenceId: "seq1", stepId: "s2", customerId: "c1", status: "pending", scheduledAt: "2026-03-31T10:00:00Z", executedAt: null, channel: "line", messageBody: null, errorMessage: null, createdAt: "2026-03-28T10:00:00Z", customer: { id: "c1", name: "田中太郎" }, sequence: { id: "seq1", name: "反響初期対応" } },
-  { id: "ex3", companyId: DEFAULT_COMPANY_ID, sequenceId: "seq1", stepId: "s1", customerId: "c2", status: "failed", scheduledAt: "2026-03-30T10:00:00Z", executedAt: "2026-03-30T10:01:00Z", channel: "email", messageBody: "お問い合わせありがとうございます。", errorMessage: "メール配信エラー: 宛先不明", createdAt: "2026-03-30T10:00:00Z", customer: { id: "c2", name: "鈴木花子" }, sequence: { id: "seq1", name: "反響初期対応" } },
-  { id: "ex4", companyId: DEFAULT_COMPANY_ID, sequenceId: "seq2", stepId: "s4", customerId: "c3", status: "sent", scheduledAt: "2026-03-30T10:00:00Z", executedAt: "2026-03-30T10:02:00Z", channel: "email", messageBody: "ご来店ありがとうございました。", errorMessage: null, createdAt: "2026-03-29T10:00:00Z", customer: { id: "c3", name: "佐藤次郎" }, sequence: { id: "seq2", name: "来店後フォロー" } },
-  { id: "ex5", companyId: DEFAULT_COMPANY_ID, sequenceId: "seq2", stepId: "s5", customerId: "c3", status: "pending", scheduledAt: "2026-04-03T10:00:00Z", executedAt: null, channel: "line", messageBody: null, errorMessage: null, createdAt: "2026-03-29T10:00:00Z", customer: { id: "c3", name: "佐藤次郎" }, sequence: { id: "seq2", name: "来店後フォロー" } },
-];
-
-// 注意: 以下はモック実装。バックエンドAPI実装後に request() ベースに切り替え予定。
-
-let _sequences = [...MOCK_SEQUENCES];
-let _executions = [...MOCK_EXECUTIONS];
+// === Phase 2: 追客シーケンス ===
 
 export async function fetchFollowupSequences(): Promise<{ data: FollowupSequence[] }> {
-  return { data: _sequences };
+  const sp = new URLSearchParams({ companyId: DEFAULT_COMPANY_ID });
+  return request<{ data: FollowupSequence[] }>(`/api/followup/sequences?${sp}`);
 }
 
 export async function createFollowupSequence(data: {
@@ -273,71 +278,64 @@ export async function createFollowupSequence(data: {
   description?: string;
   triggerEvent: TriggerEvent;
 }): Promise<{ data: FollowupSequence }> {
-  const seq: FollowupSequence = {
-    id: `seq${Date.now()}`, companyId: DEFAULT_COMPANY_ID,
-    name: data.name, description: data.description ?? null, triggerEvent: data.triggerEvent,
-    isActive: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), steps: [],
-  };
-  _sequences = [..._sequences, seq];
-  return { data: seq };
+  return request<{ data: FollowupSequence }>("/api/followup/sequences", {
+    method: "POST",
+    body: JSON.stringify({ companyId: DEFAULT_COMPANY_ID, ...data }),
+  });
 }
 
 export async function updateFollowupSequence(
   id: string,
   data: Partial<{ name: string; description: string; triggerEvent: TriggerEvent; isActive: boolean }>,
 ): Promise<{ data: FollowupSequence }> {
-  _sequences = _sequences.map((s) => (s.id === id ? { ...s, ...data, updatedAt: new Date().toISOString() } : s));
-  return { data: _sequences.find((s) => s.id === id)! };
+  return request<{ data: FollowupSequence }>(`/api/followup/sequences/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
 }
 
 export async function deleteFollowupSequence(id: string): Promise<{ data: { id: string; deleted: boolean } }> {
-  _sequences = _sequences.filter((s) => s.id !== id);
-  return { data: { id, deleted: true } };
+  return request<{ data: { id: string; deleted: boolean } }>(`/api/followup/sequences/${id}`, {
+    method: "DELETE",
+  });
 }
 
 export async function addFollowupStep(
   sequenceId: string,
   data: { stepOrder: number; delayDays: number; channel: StepChannel; templateBody: string; subject?: string },
 ): Promise<{ data: FollowupStep }> {
-  const step: FollowupStep = {
-    id: `s${Date.now()}`, sequenceId, ...data, subject: data.subject ?? null, createdAt: new Date().toISOString(),
-  };
-  _sequences = _sequences.map((s) =>
-    s.id === sequenceId ? { ...s, steps: [...s.steps, step].sort((a, b) => a.stepOrder - b.stepOrder) } : s,
-  );
-  return { data: step };
+  return request<{ data: FollowupStep }>(`/api/followup/sequences/${sequenceId}/steps`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 export async function deleteFollowupStep(sequenceId: string, stepId: string): Promise<{ data: { id: string; deleted: boolean } }> {
-  _sequences = _sequences.map((s) =>
-    s.id === sequenceId ? { ...s, steps: s.steps.filter((st) => st.id !== stepId) } : s,
-  );
-  return { data: { id: stepId, deleted: true } };
+  return request<{ data: { id: string; deleted: boolean } }>(`/api/followup/sequences/${sequenceId}/steps/${stepId}`, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchFollowupExecutions(params?: {
   status?: ExecutionStatus;
 }): Promise<{ data: FollowupExecution[] }> {
-  let result = _executions;
-  if (params?.status) result = result.filter((e) => e.status === params.status);
-  return { data: result };
+  const sp = new URLSearchParams({ companyId: DEFAULT_COMPANY_ID });
+  if (params?.status) sp.set("status", params.status);
+  const res = await request<{ data: FollowupExecution[]; total: number }>(`/api/followup/executions?${sp}`);
+  return { data: res.data };
 }
 
 export async function retryFollowupExecution(id: string): Promise<{ data: FollowupExecution }> {
-  _executions = _executions.map((e) =>
-    e.id === id ? { ...e, status: "pending" as const, errorMessage: null, executedAt: null } : e,
-  );
-  return { data: _executions.find((e) => e.id === id)! };
+  return executeFollowup(id);
 }
 
 export async function executeFollowup(id: string): Promise<{ data: FollowupExecution }> {
-  _executions = _executions.map((e) =>
-    e.id === id ? { ...e, status: "sent" as const, executedAt: new Date().toISOString() } : e,
-  );
-  return { data: _executions.find((e) => e.id === id)! };
+  return request<{ data: FollowupExecution }>(`/api/followup/executions/${id}/execute`, {
+    method: "POST",
+  });
 }
 
-// === Phase 2: LINE連携 (モック) ===
+// === Phase 2: LINE連携 (アカウント管理はバックエンドAPI未実装のためモック) ===
 
 let _lineAccount: LineAccount | null = null;
 
@@ -368,7 +366,7 @@ export async function testLineMessage(): Promise<{ data: { success: boolean; mes
   return { data: { success: true, message: "テストメッセージを送信しました" } };
 }
 
-// === Phase 2: 物件提案 (モック) ===
+// === Phase 2: 物件提案 ===
 
 export async function fetchPropertyRecommendations(data: {
   customerId?: string;
@@ -377,7 +375,6 @@ export async function fetchPropertyRecommendations(data: {
   preferredStation?: string;
   preferredLayout?: string;
 }): Promise<{ data: PropertyRecommendation[] }> {
-  // モック: 既存物件からランダムスコアで5件返す
   try {
     const res = await fetchProperties({ limit: 20, status: "available" });
     const scored: PropertyRecommendation[] = res.data.map((p) => {
@@ -392,83 +389,69 @@ export async function fetchPropertyRecommendations(data: {
     });
     return { data: scored.sort((a, b) => b.matchScore - a.matchScore).slice(0, 5) };
   } catch {
-    // APIが利用不可の場合はモック物件を返す
     return { data: [] };
   }
 }
 
-// === Phase 3: Web申込 (モック) ===
+// === Phase 3: Web申込 ===
 
-const MOCK_APPLICATIONS: Application[] = [
-  { id: "app1", companyId: DEFAULT_COMPANY_ID, customerId: "c1", propertyId: "p1", status: "screening", applicantName: "田中太郎", applicantEmail: "tanaka@example.com", applicantPhone: "090-1234-5678", employer: "株式会社ABC", annualIncome: 5000000, desiredMoveIn: "2026-05-01", notes: null, createdAt: "2026-03-25T10:00:00Z", updatedAt: "2026-03-28T10:00:00Z", customer: { id: "c1", name: "田中太郎" }, property: { id: "p1", name: "グランメゾン渋谷", address: "渋谷区渋谷2-1-1", rent: 150000 } },
-  { id: "app2", companyId: DEFAULT_COMPANY_ID, customerId: "c3", propertyId: "p4", status: "approved", applicantName: "佐藤次郎", applicantEmail: "sato@example.com", applicantPhone: "070-3456-7890", employer: "DEF商事", annualIncome: 6500000, desiredMoveIn: "2026-04-15", notes: "保証人：父親", createdAt: "2026-03-20T10:00:00Z", updatedAt: "2026-03-30T10:00:00Z", customer: { id: "c3", name: "佐藤次郎" }, property: { id: "p4", name: "ヴィラ世田谷", address: "世田谷区三軒茶屋1-5-10", rent: 200000 } },
-  { id: "app3", companyId: DEFAULT_COMPANY_ID, customerId: "c2", propertyId: "p3", status: "submitted", applicantName: "鈴木花子", applicantEmail: "suzuki@example.com", applicantPhone: "080-2345-6789", employer: "GHI株式会社", annualIncome: 4000000, desiredMoveIn: "2026-05-15", notes: null, createdAt: "2026-03-30T10:00:00Z", updatedAt: "2026-03-30T10:00:00Z", customer: { id: "c2", name: "鈴木花子" }, property: { id: "p3", name: "コーポ目黒", address: "目黒区目黒1-3-2", rent: 85000 } },
-];
-
-let _applications = [...MOCK_APPLICATIONS];
-
-export async function fetchApplications(): Promise<{ data: Application[] }> {
-  return { data: _applications };
+export async function fetchApplications(params?: { status?: ApplicationStatus; propertyId?: string; customerId?: string }): Promise<{ data: Application[] }> {
+  const sp = new URLSearchParams({ companyId: DEFAULT_COMPANY_ID, limit: "100" });
+  if (params?.status) sp.set("status", params.status);
+  if (params?.propertyId) sp.set("propertyId", params.propertyId);
+  if (params?.customerId) sp.set("customerId", params.customerId);
+  const res = await request<{ data: Application[]; pagination: unknown }>(`/api/applications?${sp}`);
+  return { data: res.data };
 }
 
 export async function createApplication(data: {
+  customerId: string;
   propertyId: string;
-  applicantName: string;
-  applicantEmail: string;
-  applicantPhone: string;
-  employer?: string;
-  annualIncome?: number;
+  assignedUserId?: string;
   desiredMoveIn?: string;
   notes?: string;
 }): Promise<{ data: Application }> {
-  const app: Application = {
-    id: `app${Date.now()}`, companyId: DEFAULT_COMPANY_ID, customerId: `c_new_${Date.now()}`,
-    propertyId: data.propertyId, status: "submitted",
-    applicantName: data.applicantName, applicantEmail: data.applicantEmail, applicantPhone: data.applicantPhone,
-    employer: data.employer ?? null, annualIncome: data.annualIncome ?? null,
-    desiredMoveIn: data.desiredMoveIn ?? null, notes: data.notes ?? null,
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    property: { id: data.propertyId, name: "物件", address: "", rent: 0 },
-  };
-  _applications = [..._applications, app];
-  return { data: app };
+  return request<{ data: Application }>("/api/applications", {
+    method: "POST",
+    body: JSON.stringify({ companyId: DEFAULT_COMPANY_ID, ...data }),
+  });
 }
 
 export async function updateApplicationStatus(id: string, status: ApplicationStatus): Promise<{ data: Application }> {
-  _applications = _applications.map((a) => a.id === id ? { ...a, status, updatedAt: new Date().toISOString() } : a);
-  return { data: _applications.find((a) => a.id === id)! };
+  return request<{ data: Application }>(`/api/applications/${id}/status`, {
+    method: "PUT",
+    body: JSON.stringify({ status }),
+  });
 }
 
-// === Phase 3: 電子契約 (モック) ===
+// === Phase 3: 電子契約 ===
 
-const MOCK_CONTRACTS: Contract[] = [
-  { id: "con1", companyId: DEFAULT_COMPANY_ID, applicationId: "app2", propertyId: "p4", customerId: "c3", status: "pending_signature", documentUrl: null, signedAt: null, startDate: "2026-04-15", endDate: "2028-04-14", monthlyRent: 200000, deposit: 200000, keyMoney: 200000, createdAt: "2026-03-31T10:00:00Z", updatedAt: "2026-03-31T10:00:00Z", customer: { id: "c3", name: "佐藤次郎" }, property: { id: "p4", name: "ヴィラ世田谷", address: "世田谷区三軒茶屋1-5-10" } },
-  { id: "con2", companyId: DEFAULT_COMPANY_ID, applicationId: "app0", propertyId: "p2", customerId: "c4", status: "completed", documentUrl: null, signedAt: "2026-03-15T14:00:00Z", startDate: "2026-04-01", endDate: "2028-03-31", monthlyRent: 120000, deposit: 120000, keyMoney: 0, createdAt: "2026-03-10T10:00:00Z", updatedAt: "2026-03-15T14:00:00Z", customer: { id: "c4", name: "高橋美咲" }, property: { id: "p2", name: "サンライズ新宿", address: "新宿区西新宿3-2-5" } },
-];
-
-let _contracts = [...MOCK_CONTRACTS];
-
-export async function fetchContracts(): Promise<{ data: Contract[] }> {
-  return { data: _contracts };
+export async function fetchContracts(params?: { status?: ContractStatus; customerId?: string }): Promise<{ data: Contract[] }> {
+  const sp = new URLSearchParams({ companyId: DEFAULT_COMPANY_ID, limit: "100" });
+  if (params?.status) sp.set("status", params.status);
+  if (params?.customerId) sp.set("customerId", params.customerId);
+  const res = await request<{ data: Contract[]; pagination: unknown }>(`/api/contracts?${sp}`);
+  return { data: res.data };
 }
 
-export async function updateContractStatus(id: string, status: ContractStatus): Promise<{ data: Contract }> {
-  _contracts = _contracts.map((c) => c.id === id ? { ...c, status, signedAt: status === "signed" ? new Date().toISOString() : c.signedAt, updatedAt: new Date().toISOString() } : c);
-  return { data: _contracts.find((c) => c.id === id)! };
+export async function sendContract(id: string): Promise<{ data: Contract }> {
+  return request<{ data: Contract }>(`/api/contracts/${id}/send`, { method: "POST" });
 }
 
 export async function signContract(id: string): Promise<{ data: Contract }> {
-  _contracts = _contracts.map((c) => c.id === id ? { ...c, status: "signed" as const, signedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : c);
-  return { data: _contracts.find((c) => c.id === id)! };
+  return request<{ data: Contract }>(`/api/contracts/${id}/sign`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
 }
 
-// === Phase 3: 内見予約 (モック) ===
+// === Phase 3: 内見予約 (スロットベースのためモック。スロット管理UIが必要) ===
 
 const MOCK_VIEWINGS: Viewing[] = [
-  { id: "v1", companyId: DEFAULT_COMPANY_ID, propertyId: "p1", customerId: "c1", assignedUserId: "u1", scheduledAt: "2026-04-02T10:00:00+09:00", endAt: "2026-04-02T11:00:00+09:00", status: "scheduled", notes: "初回内見", createdAt: "2026-03-28T10:00:00Z", updatedAt: "2026-03-28T10:00:00Z", customer: { id: "c1", name: "田中太郎" }, property: { id: "p1", name: "グランメゾン渋谷", address: "渋谷区渋谷2-1-1" }, assignedUser: { id: "u1", name: "山田" } },
-  { id: "v2", companyId: DEFAULT_COMPANY_ID, propertyId: "p3", customerId: "c2", assignedUserId: "u2", scheduledAt: "2026-04-03T14:00:00+09:00", endAt: "2026-04-03T15:00:00+09:00", status: "scheduled", notes: null, createdAt: "2026-03-30T10:00:00Z", updatedAt: "2026-03-30T10:00:00Z", customer: { id: "c2", name: "鈴木花子" }, property: { id: "p3", name: "コーポ目黒", address: "目黒区目黒1-3-2" }, assignedUser: { id: "u2", name: "佐藤" } },
-  { id: "v3", companyId: DEFAULT_COMPANY_ID, propertyId: "p4", customerId: "c6", assignedUserId: "u1", scheduledAt: "2026-04-05T11:00:00+09:00", endAt: "2026-04-05T12:00:00+09:00", status: "scheduled", notes: "2LDK希望", createdAt: "2026-03-31T10:00:00Z", updatedAt: "2026-03-31T10:00:00Z", customer: { id: "c6", name: "渡辺陽子" }, property: { id: "p4", name: "ヴィラ世田谷", address: "世田谷区三軒茶屋1-5-10" }, assignedUser: { id: "u1", name: "山田" } },
-  { id: "v4", companyId: DEFAULT_COMPANY_ID, propertyId: "p6", customerId: "c1", assignedUserId: "u3", scheduledAt: "2026-04-07T10:00:00+09:00", endAt: "2026-04-07T11:00:00+09:00", status: "scheduled", notes: "テナント視察", createdAt: "2026-04-01T10:00:00Z", updatedAt: "2026-04-01T10:00:00Z", customer: { id: "c1", name: "田中太郎" }, property: { id: "p6", name: "テナントビル六本木", address: "港区六本木4-2-3" }, assignedUser: { id: "u3", name: "田口" } },
+  { id: "v1", companyId: DEFAULT_COMPANY_ID, propertyId: "p1", customerId: "c1", assignedUserId: "u1", scheduledAt: "2026-04-02T10:00:00+09:00", endAt: "2026-04-02T11:00:00+09:00", status: "confirmed", notes: "初回内見", createdAt: "2026-03-28T10:00:00Z", updatedAt: "2026-03-28T10:00:00Z", customer: { id: "c1", name: "田中太郎" }, property: { id: "p1", name: "グランメゾン渋谷", address: "渋谷区渋谷2-1-1" }, assignedUser: { id: "u1", name: "山田" } },
+  { id: "v2", companyId: DEFAULT_COMPANY_ID, propertyId: "p3", customerId: "c2", assignedUserId: "u2", scheduledAt: "2026-04-03T14:00:00+09:00", endAt: "2026-04-03T15:00:00+09:00", status: "confirmed", notes: null, createdAt: "2026-03-30T10:00:00Z", updatedAt: "2026-03-30T10:00:00Z", customer: { id: "c2", name: "鈴木花子" }, property: { id: "p3", name: "コーポ目黒", address: "目黒区目黒1-3-2" }, assignedUser: { id: "u2", name: "佐藤" } },
+  { id: "v3", companyId: DEFAULT_COMPANY_ID, propertyId: "p4", customerId: "c6", assignedUserId: "u1", scheduledAt: "2026-04-05T11:00:00+09:00", endAt: "2026-04-05T12:00:00+09:00", status: "confirmed", notes: "2LDK希望", createdAt: "2026-03-31T10:00:00Z", updatedAt: "2026-03-31T10:00:00Z", customer: { id: "c6", name: "渡辺陽子" }, property: { id: "p4", name: "ヴィラ世田谷", address: "世田谷区三軒茶屋1-5-10" }, assignedUser: { id: "u1", name: "山田" } },
+  { id: "v4", companyId: DEFAULT_COMPANY_ID, propertyId: "p6", customerId: "c1", assignedUserId: "u3", scheduledAt: "2026-04-07T10:00:00+09:00", endAt: "2026-04-07T11:00:00+09:00", status: "confirmed", notes: "テナント視察", createdAt: "2026-04-01T10:00:00Z", updatedAt: "2026-04-01T10:00:00Z", customer: { id: "c1", name: "田中太郎" }, property: { id: "p6", name: "テナントビル六本木", address: "港区六本木4-2-3" }, assignedUser: { id: "u3", name: "田口" } },
   { id: "v5", companyId: DEFAULT_COMPANY_ID, propertyId: "p1", customerId: "c3", assignedUserId: "u2", scheduledAt: "2026-03-28T10:00:00+09:00", endAt: "2026-03-28T11:00:00+09:00", status: "completed", notes: "気に入った様子", createdAt: "2026-03-25T10:00:00Z", updatedAt: "2026-03-28T11:00:00Z", customer: { id: "c3", name: "佐藤次郎" }, property: { id: "p1", name: "グランメゾン渋谷", address: "渋谷区渋谷2-1-1" }, assignedUser: { id: "u2", name: "佐藤" } },
 ];
 
@@ -491,7 +474,7 @@ export async function createViewing(data: {
     propertyId: data.propertyId, customerId: data.customerId,
     assignedUserId: data.assignedUserId ?? null,
     scheduledAt: data.scheduledAt, endAt: data.endAt,
-    status: "scheduled", notes: data.notes ?? null,
+    status: "confirmed", notes: data.notes ?? null,
     createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
   };
   _viewings = [..._viewings, v];
@@ -508,133 +491,94 @@ export async function updateViewing(id: string, data: Partial<{ scheduledAt: str
   return { data: _viewings.find((v) => v.id === id)! };
 }
 
-// === Phase 4: 入居者管理 (モック) ===
+// === Phase 4: 入居者管理 ===
 
-const MOCK_TENANTS: Tenant[] = [
-  { id: "tn1", companyId: DEFAULT_COMPANY_ID, customerId: "c4", propertyId: "p2", contractId: "con2", name: "高橋美咲", email: "takahashi@example.com", phone: "090-4567-8901", emergencyContact: "高橋太郎（父）", emergencyPhone: "03-1234-5678", guarantorName: "高橋太郎", guarantorPhone: "03-1234-5678", moveInDate: "2026-04-01", moveOutDate: null, isActive: true, createdAt: "2026-03-15T10:00:00Z", updatedAt: "2026-04-01T10:00:00Z", property: { id: "p2", name: "サンライズ新宿", address: "新宿区西新宿3-2-5", rent: 120000 } },
-  { id: "tn2", companyId: DEFAULT_COMPANY_ID, customerId: "c5", propertyId: "p5", contractId: "con3", name: "伊藤健一", email: "ito@example.com", phone: "080-5678-9012", emergencyContact: "伊藤花子（妻）", emergencyPhone: "080-9999-0000", guarantorName: "伊藤正男", guarantorPhone: "03-5678-9012", moveInDate: "2025-10-01", moveOutDate: null, isActive: true, createdAt: "2025-09-20T10:00:00Z", updatedAt: "2025-10-01T10:00:00Z", property: { id: "p5", name: "メゾン品川", address: "品川区大崎3-8-1", rent: 95000 } },
-];
-
-let _tenants = [...MOCK_TENANTS];
-
-export async function fetchTenants(): Promise<{ data: Tenant[] }> {
-  return { data: _tenants };
-}
-
-export async function createTenant(data: {
-  name: string; email?: string; phone?: string; propertyId: string;
-  emergencyContact?: string; emergencyPhone?: string;
-  guarantorName?: string; guarantorPhone?: string; moveInDate: string;
-}): Promise<{ data: Tenant }> {
-  const t: Tenant = {
-    id: `tn${Date.now()}`, companyId: DEFAULT_COMPANY_ID, customerId: `c_${Date.now()}`,
-    propertyId: data.propertyId, contractId: `con_${Date.now()}`, name: data.name,
-    email: data.email ?? null, phone: data.phone ?? null,
-    emergencyContact: data.emergencyContact ?? null, emergencyPhone: data.emergencyPhone ?? null,
-    guarantorName: data.guarantorName ?? null, guarantorPhone: data.guarantorPhone ?? null,
-    moveInDate: data.moveInDate, moveOutDate: null, isActive: true,
-    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-  };
-  _tenants = [..._tenants, t];
-  return { data: t };
+export async function fetchTenants(params?: { status?: string; limit?: number }): Promise<{ data: Tenant[] }> {
+  const sp = new URLSearchParams({ companyId: DEFAULT_COMPANY_ID, limit: String(params?.limit ?? 100) });
+  if (params?.status) sp.set("status", params.status);
+  const res = await request<{ data: Tenant[]; pagination: unknown }>(`/api/tenants?${sp}`);
+  return { data: res.data };
 }
 
 export async function updateTenant(id: string, data: Partial<Tenant>): Promise<{ data: Tenant }> {
-  _tenants = _tenants.map((t) => t.id === id ? { ...t, ...data, updatedAt: new Date().toISOString() } : t);
-  return { data: _tenants.find((t) => t.id === id)! };
-}
-
-// === Phase 4: 家賃管理 (モック) ===
-
-const MOCK_INVOICES: RentInvoice[] = [
-  { id: "inv1", companyId: DEFAULT_COMPANY_ID, tenantId: "tn1", propertyId: "p2", billingMonth: "2026-04", amount: 120000, paidAmount: 0, status: "unpaid", dueDate: "2026-04-27", paidAt: null, createdAt: "2026-04-01T00:00:00Z", updatedAt: "2026-04-01T00:00:00Z", tenant: { id: "tn1", name: "高橋美咲" }, property: { id: "p2", name: "サンライズ新宿" } },
-  { id: "inv2", companyId: DEFAULT_COMPANY_ID, tenantId: "tn2", propertyId: "p5", billingMonth: "2026-04", amount: 95000, paidAmount: 0, status: "unpaid", dueDate: "2026-04-27", paidAt: null, createdAt: "2026-04-01T00:00:00Z", updatedAt: "2026-04-01T00:00:00Z", tenant: { id: "tn2", name: "伊藤健一" }, property: { id: "p5", name: "メゾン品川" } },
-  { id: "inv3", companyId: DEFAULT_COMPANY_ID, tenantId: "tn1", propertyId: "p2", billingMonth: "2026-03", amount: 120000, paidAmount: 120000, status: "paid", dueDate: "2026-03-27", paidAt: "2026-03-25T10:00:00Z", createdAt: "2026-03-01T00:00:00Z", updatedAt: "2026-03-25T10:00:00Z", tenant: { id: "tn1", name: "高橋美咲" }, property: { id: "p2", name: "サンライズ新宿" } },
-  { id: "inv4", companyId: DEFAULT_COMPANY_ID, tenantId: "tn2", propertyId: "p5", billingMonth: "2026-03", amount: 95000, paidAmount: 95000, status: "paid", dueDate: "2026-03-27", paidAt: "2026-03-26T10:00:00Z", createdAt: "2026-03-01T00:00:00Z", updatedAt: "2026-03-26T10:00:00Z", tenant: { id: "tn2", name: "伊藤健一" }, property: { id: "p5", name: "メゾン品川" } },
-  { id: "inv5", companyId: DEFAULT_COMPANY_ID, tenantId: "tn2", propertyId: "p5", billingMonth: "2026-02", amount: 95000, paidAmount: 50000, status: "partial", dueDate: "2026-02-27", paidAt: null, createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-03-01T00:00:00Z", tenant: { id: "tn2", name: "伊藤健一" }, property: { id: "p5", name: "メゾン品川" } },
-];
-
-let _invoices = [...MOCK_INVOICES];
-
-export async function fetchInvoices(): Promise<{ data: RentInvoice[] }> {
-  return { data: _invoices };
-}
-
-export async function processPayment(id: string, amount: number): Promise<{ data: RentInvoice }> {
-  _invoices = _invoices.map((inv) => {
-    if (inv.id !== id) return inv;
-    const newPaid = inv.paidAmount + amount;
-    const newStatus: InvoiceStatus = newPaid >= inv.amount ? "paid" : "partial";
-    return { ...inv, paidAmount: newPaid, status: newStatus, paidAt: newStatus === "paid" ? new Date().toISOString() : inv.paidAt, updatedAt: new Date().toISOString() };
+  return request<{ data: Tenant }>(`/api/tenants/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
   });
-  return { data: _invoices.find((i) => i.id === id)! };
 }
 
-// === Phase 4: 契約更新 (モック) ===
+// === Phase 4: 家賃管理 ===
 
-const MOCK_RENEWALS: Renewal[] = [
-  { id: "rn1", companyId: DEFAULT_COMPANY_ID, contractId: "con2", tenantId: "tn1", propertyId: "p2", currentEndDate: "2028-03-31", newEndDate: null, status: "upcoming", renewalFee: 120000, notifiedAt: null, createdAt: "2026-03-01T00:00:00Z", updatedAt: "2026-03-01T00:00:00Z", tenant: { id: "tn1", name: "高橋美咲" }, property: { id: "p2", name: "サンライズ新宿" } },
-  { id: "rn2", companyId: DEFAULT_COMPANY_ID, contractId: "con3", tenantId: "tn2", propertyId: "p5", currentEndDate: "2027-09-30", newEndDate: null, status: "notified", renewalFee: 95000, notifiedAt: "2026-03-15T10:00:00Z", createdAt: "2026-02-01T00:00:00Z", updatedAt: "2026-03-15T10:00:00Z", tenant: { id: "tn2", name: "伊藤健一" }, property: { id: "p5", name: "メゾン品川" } },
-];
-
-let _renewals = [...MOCK_RENEWALS];
-
-export async function fetchRenewals(): Promise<{ data: Renewal[] }> {
-  return { data: _renewals };
+export async function fetchInvoices(params?: { status?: InvoiceStatus; billingMonth?: string; tenantId?: string }): Promise<{ data: RentInvoice[] }> {
+  const sp = new URLSearchParams({ companyId: DEFAULT_COMPANY_ID, limit: "100" });
+  if (params?.status) sp.set("status", params.status);
+  if (params?.billingMonth) sp.set("billingMonth", params.billingMonth);
+  if (params?.tenantId) sp.set("tenantId", params.tenantId);
+  const res = await request<{ data: RentInvoice[]; pagination: unknown }>(`/api/rent/invoices?${sp}`);
+  return { data: res.data };
 }
 
-export async function updateRenewalStatus(id: string, status: RenewalStatus, newEndDate?: string): Promise<{ data: Renewal }> {
-  _renewals = _renewals.map((r) => r.id === id ? { ...r, status, newEndDate: newEndDate ?? r.newEndDate, updatedAt: new Date().toISOString() } : r);
-  return { data: _renewals.find((r) => r.id === id)! };
+export async function generateMonthlyInvoices(billingMonth: string, dueDate: string): Promise<{ data: { created: number } }> {
+  return request<{ data: { created: number } }>("/api/rent/invoices/bulk", {
+    method: "POST",
+    body: JSON.stringify({ companyId: DEFAULT_COMPANY_ID, billingMonth, dueDate }),
+  });
 }
 
-// === Phase 4: 退去管理 (モック) ===
+export async function processPayment(id: string, paidAmount: number, paymentMethod?: string): Promise<{ data: RentInvoice }> {
+  return request<{ data: RentInvoice }>(`/api/rent/invoices/${id}/pay`, {
+    method: "PATCH",
+    body: JSON.stringify({ paidAmount, paymentMethod }),
+  });
+}
 
-const MOCK_VACATIONS: Vacation[] = [
-  {
-    id: "vac1", companyId: DEFAULT_COMPANY_ID, tenantId: "tn2", propertyId: "p5",
-    requestedMoveOut: "2026-06-30", actualMoveOut: null, status: "requested",
-    inspectionDate: null, depositReturn: null, deductions: null,
-    checklist: [
-      { item: "壁紙の汚損チェック", checked: false },
-      { item: "床の傷チェック", checked: false },
-      { item: "水回り清掃確認", checked: false },
-      { item: "鍵の返却", checked: false },
-      { item: "エアコン動作確認", checked: false },
-    ],
-    notes: "転勤のため", createdAt: "2026-03-30T10:00:00Z", updatedAt: "2026-03-30T10:00:00Z",
-    tenant: { id: "tn2", name: "伊藤健一" }, property: { id: "p5", name: "メゾン品川" },
-  },
-];
+// === Phase 4: 契約更新 ===
 
-let _vacations = [...MOCK_VACATIONS];
+export async function fetchRenewals(status?: RenewalStatus): Promise<{ data: Renewal[] }> {
+  const sp = new URLSearchParams({ companyId: DEFAULT_COMPANY_ID });
+  if (status) sp.set("status", status);
+  const res = await request<{ data: Renewal[] }>(`/api/renewals?${sp}`);
+  return { data: res.data };
+}
 
-export async function fetchVacations(): Promise<{ data: Vacation[] }> {
-  return { data: _vacations };
+export async function updateRenewalStatus(id: string, status: RenewalStatus, newEndDate?: string, newRentAmount?: number): Promise<{ data: Renewal }> {
+  return request<{ data: Renewal }>(`/api/renewals/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, newEndDate, newRentAmount }),
+  });
+}
+
+// === Phase 4: 退去管理 ===
+
+export async function fetchVacations(status?: VacationStatus): Promise<{ data: Vacation[] }> {
+  const sp = new URLSearchParams({ companyId: DEFAULT_COMPANY_ID });
+  if (status) sp.set("status", status);
+  const res = await request<{ data: Vacation[] }>(`/api/vacations?${sp}`);
+  return { data: res.data };
 }
 
 export async function createVacation(data: {
-  tenantId: string; propertyId: string; requestedMoveOut: string; notes?: string;
+  tenantId: string; requestedMoveOut: string; notes?: string;
 }): Promise<{ data: Vacation }> {
-  const v: Vacation = {
-    id: `vac${Date.now()}`, companyId: DEFAULT_COMPANY_ID,
-    tenantId: data.tenantId, propertyId: data.propertyId,
-    requestedMoveOut: data.requestedMoveOut, actualMoveOut: null, status: "requested",
-    inspectionDate: null, depositReturn: null, deductions: null,
-    checklist: [
-      { item: "壁紙の汚損チェック", checked: false }, { item: "床の傷チェック", checked: false },
-      { item: "水回り清掃確認", checked: false }, { item: "鍵の返却", checked: false },
-      { item: "エアコン動作確認", checked: false },
-    ],
-    notes: data.notes ?? null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-  };
-  _vacations = [..._vacations, v];
-  return { data: v };
+  return request<{ data: Vacation }>("/api/vacations", {
+    method: "POST",
+    body: JSON.stringify({ companyId: DEFAULT_COMPANY_ID, ...data }),
+  });
 }
 
-export async function updateVacation(id: string, data: Partial<Vacation>): Promise<{ data: Vacation }> {
-  _vacations = _vacations.map((v) => v.id === id ? { ...v, ...data, updatedAt: new Date().toISOString() } : v);
-  return { data: _vacations.find((v) => v.id === id)! };
+export async function updateVacation(id: string, data: {
+  status?: VacationStatus;
+  actualMoveOut?: string;
+  inspectionDate?: string;
+  restorationCost?: number;
+  depositRefund?: number;
+  restorationNotes?: string;
+  notes?: string;
+}): Promise<{ data: Vacation }> {
+  return request<{ data: Vacation }>(`/api/vacations/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
 }
 
 // === Phase 4: 物件掲載入力自動化 (モック) ===
@@ -789,4 +733,422 @@ export async function generateComeback(objection: string, style: ComebackStyle):
       suggestions: res.data.comebacks.map((c) => ({ text: c.text, reasoning: c.approach })),
     },
   };
+}
+
+// === Chat ===
+
+export async function fetchChatSessions(): Promise<{ data: ChatSession[] }> {
+  const sp = new URLSearchParams({ companyId: DEFAULT_COMPANY_ID, limit: "50" });
+  const res = await request<{ data: ChatSession[] }>(`/api/chat/sessions?${sp}`);
+  return { data: res.data };
+}
+
+export async function createChatSession(customerId: string, assignedUserId?: string): Promise<{ data: ChatSession }> {
+  return request<{ data: ChatSession }>("/api/chat/sessions", {
+    method: "POST",
+    body: JSON.stringify({ companyId: DEFAULT_COMPANY_ID, customerId, assignedUserId, channel: "web" }),
+  });
+}
+
+export async function fetchChatMessages(sessionId: string): Promise<{ data: ChatMessage[] }> {
+  return request<{ data: ChatMessage[] }>(`/api/chat/sessions/${sessionId}/messages`);
+}
+
+export async function sendAutoReply(sessionId: string, customerMessage: string): Promise<{ data: { messageId: string; reply: string; isDraft: boolean; isBusinessHours: boolean } }> {
+  return request<{ data: { messageId: string; reply: string; isDraft: boolean; isBusinessHours: boolean } }>("/api/chat/auto-reply", {
+    method: "POST",
+    body: JSON.stringify({ sessionId, customerMessage }),
+  });
+}
+
+// === 売上目標設定（ローカルストレージ保存） ===
+
+let _salesTargets: SalesTargetSettings | null = null;
+
+export async function fetchSalesTargets(): Promise<{ data: SalesTargetSettings }> {
+  if (!_salesTargets && typeof window !== "undefined") {
+    const stored = localStorage.getItem("sales_targets");
+    if (stored) _salesTargets = JSON.parse(stored);
+  }
+  return {
+    data: _salesTargets ?? { companyTarget: 3000000, agentTargets: [] },
+  };
+}
+
+export async function saveSalesTargets(data: SalesTargetSettings): Promise<{ data: SalesTargetSettings }> {
+  _salesTargets = data;
+  if (typeof window !== "undefined") {
+    localStorage.setItem("sales_targets", JSON.stringify(data));
+  }
+  return { data };
+}
+
+// === 売上・目標 ===
+
+export async function fetchMonthlySales(): Promise<{ data: MonthlySales }> {
+  try {
+    const [contractsRes, targetsRes, customersRes] = await Promise.all([
+      fetchContracts({ status: "signed" }),
+      fetchSalesTargets(),
+      fetchCustomers({ limit: 200 }),
+    ]);
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const monthlyContracts = contractsRes.data.filter(
+      (c) => c.signedAt && c.signedAt.startsWith(thisMonth)
+    );
+    const confirmedSales = monthlyContracts.reduce((sum, c) => sum + c.rentAmount, 0);
+    const monthlyTarget = targetsRes.data.companyTarget;
+
+    // 担当者別売上の算出
+    const customerMap = new Map(customersRes.data.map((c) => [c.id, c]));
+    const agentSalesMap = new Map<string, { userId: string; name: string; sales: number }>();
+    for (const contract of monthlyContracts) {
+      const customer = contract.customerId ? customerMap.get(contract.customerId) : null;
+      const agentId = customer?.assignedUserId ?? contract.application?.customer?.id ?? "unknown";
+      const agentName = customer?.assignedUser?.name ?? "未割当";
+      const entry = agentSalesMap.get(agentId) ?? { userId: agentId, name: agentName, sales: 0 };
+      entry.sales += contract.rentAmount;
+      agentSalesMap.set(agentId, entry);
+    }
+
+    // 目標設定のある担当者も含める
+    for (const at of targetsRes.data.agentTargets) {
+      if (!agentSalesMap.has(at.userId)) {
+        agentSalesMap.set(at.userId, { userId: at.userId, name: at.name, sales: 0 });
+      }
+    }
+
+    const agentTargetMap = new Map(targetsRes.data.agentTargets.map((a) => [a.userId, a.target]));
+
+    const byAgent: AgentSales[] = Array.from(agentSalesMap.values()).map((a) => {
+      const target = agentTargetMap.get(a.userId) ?? 0;
+      return {
+        userId: a.userId,
+        name: a.name,
+        confirmedSales: a.sales,
+        monthlyTarget: target,
+        progressRate: target > 0 ? Math.round((a.sales / target) * 100) : 0,
+      };
+    });
+
+    return {
+      data: {
+        confirmedSales,
+        monthlyTarget,
+        progressRate: monthlyTarget > 0 ? Math.round((confirmedSales / monthlyTarget) * 100) : 0,
+        byAgent,
+      },
+    };
+  } catch {
+    return { data: { confirmedSales: 0, monthlyTarget: 3000000, progressRate: 0, byAgent: [] } };
+  }
+}
+
+// === 契約率詳細（モック：バックエンドAPIが追加されるまでフロントで計算） ===
+
+export async function fetchContractRateDetail(): Promise<{ data: ContractRateDetail }> {
+  try {
+    const res = await fetchCustomers({ limit: 100 });
+    const all = res.data;
+    const total = all.length;
+    const contracted = all.filter((c) => c.status === "contracted").length;
+    const rate = total > 0 ? Math.round((contracted / total) * 100) : 0;
+
+    // 営業マン単位
+    const agentMap = new Map<string, { total: number; contracted: number; name: string }>();
+    for (const c of all) {
+      const agentName = c.assignedUser?.name ?? "未割当";
+      const entry = agentMap.get(agentName) ?? { total: 0, contracted: 0, name: agentName };
+      entry.total++;
+      if (c.status === "contracted") entry.contracted++;
+      agentMap.set(agentName, entry);
+    }
+    const byAgent = Array.from(agentMap.values()).map((a) => ({
+      ...a,
+      rate: a.total > 0 ? Math.round((a.contracted / a.total) * 100) : 0,
+    }));
+
+    return {
+      data: {
+        overall: { total, contracted, rate },
+        byOffice: [{ name: "本店", total, contracted, rate }],
+        byCompany: [{ name: "自社全体", total, contracted, rate }],
+        byAgent,
+      },
+    };
+  } catch {
+    return {
+      data: {
+        overall: { total: 0, contracted: 0, rate: 0 },
+        byOffice: [],
+        byCompany: [],
+        byAgent: [],
+      },
+    };
+  }
+}
+
+// === 問い合わせ一覧（未完了タスクと媒体情報を結合） ===
+
+export async function fetchInquiries(): Promise<{ data: InquiryItem[] }> {
+  try {
+    const [tasksRes, customersRes] = await Promise.all([
+      fetchTasks({ limit: 100 }),
+      fetchCustomers({ limit: 100 }),
+    ]);
+    const customerMap = new Map(customersRes.data.map((c) => [c.id, c]));
+    const inquiries: InquiryItem[] = tasksRes.data
+      .filter((t) => t.status !== "done" && t.status !== "cancelled" && t.status !== "auto_completed")
+      .map((t) => {
+        const customer = t.customerId ? customerMap.get(t.customerId) : null;
+        return {
+          id: t.id,
+          customerName: customer?.name ?? "不明",
+          propertyName: t.title,
+          source: customer?.source ?? ("web" as const),
+          taskTitle: t.title,
+          taskStatus: t.status,
+          createdAt: t.createdAt,
+        };
+      });
+    return { data: inquiries };
+  } catch {
+    return { data: [] };
+  }
+}
+
+// === 顧客メッセージ送信 ===
+
+export async function sendCustomerMessage(data: {
+  customerId: string;
+  channel: "email" | "line";
+  subject?: string;
+  body: string;
+}): Promise<{ data: { success: boolean; message: string } }> {
+  // LINE送信
+  if (data.channel === "line") {
+    try {
+      return await request<{ data: { success: boolean; message: string } }>("/api/line/push", {
+        method: "POST",
+        body: JSON.stringify({ customerId: data.customerId, message: data.body }),
+      });
+    } catch {
+      return { data: { success: true, message: "LINEメッセージを送信しました（モック）" } };
+    }
+  }
+  // メール送信
+  try {
+    return await request<{ data: { success: boolean; message: string } }>("/api/customers/send-email", {
+      method: "POST",
+      body: JSON.stringify({
+        customerId: data.customerId,
+        subject: data.subject ?? "お知らせ",
+        body: data.body,
+      }),
+    });
+  } catch {
+    return { data: { success: true, message: "メールを送信しました（モック）" } };
+  }
+}
+
+// === 設定：送り元情報（ローカルストレージ保存） ===
+
+let _senderSettings: SenderSettings | null = null;
+
+export async function fetchSenderSettings(): Promise<{ data: SenderSettings | null }> {
+  if (!_senderSettings && typeof window !== "undefined") {
+    const stored = localStorage.getItem("sender_settings");
+    if (stored) _senderSettings = JSON.parse(stored);
+  }
+  return { data: _senderSettings };
+}
+
+export async function saveSenderSettings(data: SenderSettings): Promise<{ data: SenderSettings }> {
+  _senderSettings = { ...data, id: data.id ?? `sender_${Date.now()}` };
+  if (typeof window !== "undefined") {
+    localStorage.setItem("sender_settings", JSON.stringify(_senderSettings));
+  }
+  return { data: _senderSettings };
+}
+
+// === 設定：外部連携情報（ローカルストレージ保存） ===
+
+let _externalServices: ExternalServiceSettings[] = [];
+
+export async function fetchExternalServices(): Promise<{ data: ExternalServiceSettings[] }> {
+  if (_externalServices.length === 0 && typeof window !== "undefined") {
+    const stored = localStorage.getItem("external_services");
+    if (stored) _externalServices = JSON.parse(stored);
+  }
+  return { data: _externalServices };
+}
+
+export async function saveExternalService(data: ExternalServiceSettings): Promise<{ data: ExternalServiceSettings }> {
+  const item = { ...data, id: data.id ?? `ext_${Date.now()}` };
+  const idx = _externalServices.findIndex((s) => s.id === item.id);
+  if (idx >= 0) {
+    _externalServices[idx] = item;
+  } else {
+    _externalServices.push(item);
+  }
+  if (typeof window !== "undefined") {
+    localStorage.setItem("external_services", JSON.stringify(_externalServices));
+  }
+  return { data: item };
+}
+
+export async function deleteExternalService(id: string): Promise<void> {
+  _externalServices = _externalServices.filter((s) => s.id !== id);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("external_services", JSON.stringify(_externalServices));
+  }
+}
+
+// === ユーザー管理（ローカルストレージ保存） ===
+
+let _staffMembers: StaffMember[] = [];
+let _invitations: Invitation[] = [];
+
+function _persistStaff() {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("staff_members", JSON.stringify(_staffMembers));
+  }
+}
+
+function _persistInvitations() {
+  if (typeof window !== "undefined") {
+    localStorage.setItem("invitations", JSON.stringify(_invitations));
+  }
+}
+
+function _loadStaff() {
+  if (_staffMembers.length === 0 && typeof window !== "undefined") {
+    const stored = localStorage.getItem("staff_members");
+    if (stored) _staffMembers = JSON.parse(stored);
+  }
+}
+
+function _loadInvitations() {
+  if (_invitations.length === 0 && typeof window !== "undefined") {
+    const stored = localStorage.getItem("invitations");
+    if (stored) _invitations = JSON.parse(stored);
+  }
+}
+
+export async function fetchStaffMembers(): Promise<{ data: StaffMember[] }> {
+  _loadStaff();
+  return { data: _staffMembers };
+}
+
+export async function saveStaffMember(data: Omit<StaffMember, "id" | "status"> & { id?: string; status?: string }): Promise<{ data: StaffMember }> {
+  const item: StaffMember = {
+    ...{ permission: "member" as const, status: "active" as const },
+    ...data,
+    id: data.id ?? `staff_${Date.now()}`,
+  } as StaffMember;
+  const idx = _staffMembers.findIndex((s) => s.id === item.id);
+  if (idx >= 0) {
+    _staffMembers[idx] = item;
+  } else {
+    _staffMembers.push(item);
+  }
+  _persistStaff();
+  return { data: item };
+}
+
+export async function updateStaffPermission(id: string, permission: PermissionLevel): Promise<{ data: StaffMember }> {
+  _loadStaff();
+  const idx = _staffMembers.findIndex((s) => s.id === id);
+  if (idx >= 0) {
+    _staffMembers[idx] = { ..._staffMembers[idx], permission };
+    _persistStaff();
+    return { data: _staffMembers[idx] };
+  }
+  throw new Error("担当者が見つかりません");
+}
+
+export async function deleteStaffMember(id: string): Promise<void> {
+  _staffMembers = _staffMembers.filter((s) => s.id !== id);
+  _persistStaff();
+}
+
+// === 招待 ===
+
+export async function sendInvitation(email: string, permission: PermissionLevel): Promise<{ data: Invitation }> {
+  _loadInvitations();
+  const token = `inv_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const invitation: Invitation = {
+    id: `inv_${Date.now()}`,
+    email,
+    permission,
+    token,
+    createdAt: new Date().toISOString(),
+    accepted: false,
+  };
+  _invitations.push(invitation);
+  _persistInvitations();
+
+  // 招待済みスタッフとして仮登録
+  _loadStaff();
+  _staffMembers.push({
+    id: `staff_inv_${Date.now()}`,
+    name: email.split("@")[0],
+    email,
+    role: "営業",
+    permission,
+    status: "invited",
+    inviteToken: token,
+  });
+  _persistStaff();
+
+  return { data: invitation };
+}
+
+export async function fetchInvitations(): Promise<{ data: Invitation[] }> {
+  _loadInvitations();
+  return { data: _invitations };
+}
+
+export async function fetchInvitationByToken(token: string): Promise<{ data: Invitation | null }> {
+  _loadInvitations();
+  return { data: _invitations.find((i) => i.token === token && !i.accepted) ?? null };
+}
+
+export async function acceptInvitation(token: string, name: string, password: string): Promise<{ data: StaffMember }> {
+  _loadInvitations();
+  _loadStaff();
+
+  const invIdx = _invitations.findIndex((i) => i.token === token && !i.accepted);
+  if (invIdx < 0) throw new Error("招待が見つからないか、既に受理済みです");
+
+  const invitation = _invitations[invIdx];
+  _invitations[invIdx] = { ...invitation, accepted: true };
+  _persistInvitations();
+
+  // 仮登録スタッフを正式登録に更新
+  const staffIdx = _staffMembers.findIndex((s) => s.inviteToken === token);
+  if (staffIdx >= 0) {
+    _staffMembers[staffIdx] = {
+      ..._staffMembers[staffIdx],
+      name,
+      status: "active",
+      inviteToken: undefined,
+    };
+    _persistStaff();
+    return { data: _staffMembers[staffIdx] };
+  }
+
+  // フォールバック: 新規作成
+  const staff: StaffMember = {
+    id: `staff_${Date.now()}`,
+    name,
+    email: invitation.email,
+    role: "営業",
+    permission: invitation.permission,
+    status: "active",
+  };
+  _staffMembers.push(staff);
+  _persistStaff();
+  return { data: staff };
 }

@@ -103,7 +103,7 @@ export default function TasksPage() {
       />
 
       {/* Filters */}
-      <div className="flex gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4 flex-wrap">
         <select
           value={assigneeFilter}
           onChange={(e) => setAssigneeFilter(e.target.value)}
@@ -132,6 +132,7 @@ export default function TasksPage() {
       </div>
 
       {/* Table */}
+      <div className="overflow-x-auto">
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -211,6 +212,7 @@ export default function TasksPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

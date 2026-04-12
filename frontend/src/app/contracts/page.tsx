@@ -2,15 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { PageHeader } from "@/components/page-header";
-import { fetchContracts, signContract, updateContractStatus } from "@/lib/api";
+import { fetchContracts, sendContract, signContract } from "@/lib/api";
 import type { Contract, ContractStatus } from "@/types";
 import { contractStatusLabel } from "@/types";
 
 const statusColors: Record<ContractStatus, string> = {
   draft: "bg-gray-100 text-gray-600",
-  pending_signature: "bg-yellow-100 text-yellow-700",
-  signed: "bg-blue-100 text-blue-700",
-  completed: "bg-green-100 text-green-700",
+  sent: "bg-yellow-100 text-yellow-700",
+  signed: "bg-green-100 text-green-700",
   cancelled: "bg-red-100 text-red-700",
 };
 
@@ -56,16 +55,19 @@ export default function ContractsPage() {
     }
   }
 
-  async function handleStatusChange(id: string, status: ContractStatus) {
+  async function handleSend(id: string) {
     try {
-      await updateContractStatus(id, status);
+      await sendContract(id);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : "ステータス更新に失敗しました");
+      alert(e instanceof Error ? e.message : "送信に失敗しました");
     }
   }
 
   const signingContract = contracts.find((c) => c.id === signingId);
+  const customerName = signingContract?.application?.customer?.name ?? signingContract?.customerId;
+  const propertyName = signingContract?.application?.property?.name ?? signingContract?.propertyId;
+  const propertyAddress = signingContract?.application?.property?.address;
 
   if (loading) {
     return (
@@ -89,15 +91,16 @@ export default function ContractsPage() {
       <PageHeader title="電子契約" description="契約書一覧・電子署名管理" />
 
       {/* Contract List */}
+      <div className="overflow-x-auto">
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">契約ID</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">契約ID</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">顧客</th>
               <th className="text-left px-4 py-3 font-medium text-gray-600">物件</th>
               <th className="text-right px-4 py-3 font-medium text-gray-600">月額賃料</th>
-              <th className="text-left px-4 py-3 font-medium text-gray-600">契約期間</th>
+              <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">契約期間</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">ステータス</th>
               <th className="text-center px-4 py-3 font-medium text-gray-600">操作</th>
             </tr>
@@ -105,21 +108,21 @@ export default function ContractsPage() {
           <tbody className="divide-y divide-gray-100">
             {contracts.map((c) => (
               <tr key={c.id} className="hover:bg-gray-50">
-                <td className="px-4 py-3 font-mono text-xs text-gray-500">{c.id}</td>
+                <td className="px-4 py-3 font-mono text-xs text-gray-500 hidden sm:table-cell">{c.id.slice(0, 8)}...</td>
                 <td className="px-4 py-3 font-medium text-gray-900">
-                  {c.customer?.name ?? c.customerId}
+                  {c.application?.customer?.name ?? c.customerId}
                 </td>
                 <td className="px-4 py-3 text-gray-700">
-                  {c.property?.name ?? c.propertyId}
-                  {c.property?.address && (
-                    <span className="text-xs text-gray-500 block">{c.property.address}</span>
+                  {c.application?.property?.name ?? c.propertyId}
+                  {c.application?.property?.address && (
+                    <span className="text-xs text-gray-500 block">{c.application.property.address}</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right text-gray-900">
-                  {c.monthlyRent.toLocaleString()}円
+                  {c.rentAmount.toLocaleString()}円
                 </td>
-                <td className="px-4 py-3 text-gray-600 text-xs">
-                  {c.startDate} 〜 {c.endDate}
+                <td className="px-4 py-3 text-gray-600 text-xs hidden sm:table-cell">
+                  {c.leaseStartDate ?? "-"} 〜 {c.leaseEndDate ?? "-"}
                 </td>
                 <td className="px-4 py-3 text-center">
                   <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[c.status]}`}>
@@ -128,20 +131,20 @@ export default function ContractsPage() {
                 </td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-2">
-                    {c.status === "pending_signature" && (
+                    {c.status === "draft" && (
+                      <button
+                        onClick={() => handleSend(c.id)}
+                        className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                      >
+                        署名依頼送信
+                      </button>
+                    )}
+                    {c.status === "sent" && (
                       <button
                         onClick={() => openSign(c)}
                         className="text-blue-600 hover:text-blue-800 text-xs font-medium"
                       >
                         署名する
-                      </button>
-                    )}
-                    {c.status === "signed" && (
-                      <button
-                        onClick={() => handleStatusChange(c.id, "completed")}
-                        className="text-green-600 hover:text-green-800 text-xs font-medium"
-                      >
-                        完了にする
                       </button>
                     )}
                     {c.signedAt && (
@@ -162,6 +165,7 @@ export default function ContractsPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       {/* Sign Modal */}
@@ -190,36 +194,16 @@ export default function ContractsPage() {
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 max-h-64 overflow-y-auto">
                   <h3 className="text-sm font-bold text-gray-700 mb-2">賃貸借契約書（プレビュー）</h3>
                   <div className="text-xs text-gray-600 space-y-2">
-                    <p>
-                      <strong>契約者:</strong> {signingContract.customer?.name}
-                    </p>
-                    <p>
-                      <strong>物件:</strong> {signingContract.property?.name}（{signingContract.property?.address}）
-                    </p>
-                    <p>
-                      <strong>契約期間:</strong> {signingContract.startDate} 〜 {signingContract.endDate}
-                    </p>
-                    <p>
-                      <strong>月額賃料:</strong> {signingContract.monthlyRent.toLocaleString()}円
-                    </p>
-                    <p>
-                      <strong>敷金:</strong> {signingContract.deposit.toLocaleString()}円 /
-                      <strong> 礼金:</strong> {signingContract.keyMoney.toLocaleString()}円
-                    </p>
+                    <p><strong>契約者:</strong> {customerName}</p>
+                    <p><strong>物件:</strong> {propertyName}{propertyAddress && `（${propertyAddress}）`}</p>
+                    <p><strong>契約期間:</strong> {signingContract.leaseStartDate ?? "-"} 〜 {signingContract.leaseEndDate ?? "-"}</p>
+                    <p><strong>月額賃料:</strong> {signingContract.rentAmount.toLocaleString()}円</p>
+                    <p><strong>敷金:</strong> {signingContract.depositAmount.toLocaleString()}円 / <strong>礼金:</strong> {signingContract.keyMoneyAmount.toLocaleString()}円</p>
                     <hr className="border-gray-300 my-2" />
-                    <p>
-                      第1条（目的）貸主は、上記物件を借主に賃貸し、借主はこれを賃借する。
-                    </p>
-                    <p>
-                      第2条（賃料）借主は、毎月末日までに翌月分の賃料を貸主に支払うものとする。
-                    </p>
-                    <p>
-                      第3条（契約期間）本契約の期間は上記のとおりとし、期間満了の6ヶ月前までに
-                      当事者の一方から更新しない旨の通知がない限り、同一条件で更新されるものとする。
-                    </p>
-                    <p>
-                      第4条（禁止事項）借主は、貸主の書面による承諾なく、物件の改築・増築・転貸を行ってはならない。
-                    </p>
+                    <p>第1条（目的）貸主は、上記物件を借主に賃貸し、借主はこれを賃借する。</p>
+                    <p>第2条（賃料）借主は、毎月末日までに翌月分の賃料を貸主に支払うものとする。</p>
+                    <p>第3条（契約期間）本契約の期間は上記のとおりとし、期間満了の6ヶ月前までに当事者の一方から更新しない旨の通知がない限り、同一条件で更新されるものとする。</p>
+                    <p>第4条（禁止事項）借主は、貸主の書面による承諾なく、物件の改築・増築・転貸を行ってはならない。</p>
                   </div>
                 </div>
 
@@ -227,7 +211,7 @@ export default function ContractsPage() {
                 <div className="border border-gray-200 rounded-lg p-4 mb-4">
                   <p className="text-sm font-medium text-gray-700 mb-2">署名欄</p>
                   <div className="bg-white border-2 border-dashed border-gray-300 rounded h-20 flex items-center justify-center text-gray-400 text-sm">
-                    {signingContract.customer?.name}（電子署名）
+                    {customerName}（電子署名）
                   </div>
                 </div>
 

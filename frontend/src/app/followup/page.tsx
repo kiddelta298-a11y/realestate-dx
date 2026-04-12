@@ -225,16 +225,17 @@ export default function FollowupPage() {
 
       {/* Tab: History */}
       {tab === "history" && (
+        <div className="overflow-x-auto">
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">顧客</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">シーケンス</th>
-                <th className="text-center px-4 py-3 font-medium text-gray-600">チャネル</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">シーケンス</th>
+                <th className="text-center px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">チャネル</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">ステータス</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">予定日時</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">実行日時</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">予定日時</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 hidden sm:table-cell">実行日時</th>
                 <th className="text-center px-4 py-3 font-medium text-gray-600">操作</th>
               </tr>
             </thead>
@@ -242,8 +243,8 @@ export default function FollowupPage() {
               {executions.map((ex) => (
                 <tr key={ex.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium text-gray-900">{ex.customer?.name ?? "-"}</td>
-                  <td className="px-4 py-3 text-gray-600">{ex.sequence?.name ?? "-"}</td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{ex.sequence?.name ?? "-"}</td>
+                  <td className="px-4 py-3 text-center hidden sm:table-cell">
                     <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{stepChannelLabel[ex.channel as keyof typeof stepChannelLabel] ?? ex.channel}</span>
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -251,8 +252,8 @@ export default function FollowupPage() {
                       {executionStatusLabel[ex.status as ExecutionStatus] ?? ex.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{new Date(ex.scheduledAt).toLocaleString("ja-JP")}</td>
-                  <td className="px-4 py-3 text-gray-600 text-xs">{ex.executedAt ? new Date(ex.executedAt).toLocaleString("ja-JP") : "-"}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs hidden sm:table-cell">{new Date(ex.scheduledAt).toLocaleString("ja-JP")}</td>
+                  <td className="px-4 py-3 text-gray-600 text-xs hidden sm:table-cell">{ex.executedAt ? new Date(ex.executedAt).toLocaleString("ja-JP") : "-"}</td>
                   <td className="px-4 py-3 text-center">
                     {ex.status === "failed" && (
                       <button onClick={() => handleRetry(ex.id)} className="text-xs text-blue-600 hover:underline">再試行</button>
@@ -272,6 +273,7 @@ export default function FollowupPage() {
             </div>
           ))}
         </div>
+        </div>
       )}
 
       {/* Tab: Pending */}
@@ -282,8 +284,8 @@ export default function FollowupPage() {
           ) : (
             <div className="space-y-3">
               {pendingExecs.map((ex) => (
-                <div key={ex.id} className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
+                <div key={ex.id} className="bg-white rounded-lg shadow p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-4">
                     <div>
                       <p className="font-medium text-gray-900">{ex.customer?.name ?? "-"}</p>
                       <p className="text-xs text-gray-500">{ex.sequence?.name ?? "-"}</p>

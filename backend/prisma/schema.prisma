@@ -38,10 +38,11 @@ model User {
   companyId  String  @map("company_id") @db.Uuid
   email      String  @db.VarChar(255)
   name       String  @db.VarChar(100)
-  role       String  @default("agent") @db.VarChar(50)
-  avatarUrl  String? @map("avatar_url")
-  replyStyle Json    @default("{}") @map("reply_style")
-  isActive   Boolean @default(true) @map("is_active")
+  role         String  @default("agent") @db.VarChar(50)
+  avatarUrl    String? @map("avatar_url")
+  passwordHash String? @map("password_hash") @db.VarChar(255)
+  replyStyle   Json    @default("{}") @map("reply_style")
+  isActive     Boolean @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -653,6 +654,27 @@ model SuumoPost {
   @@index([companyId, status])
   @@index([propertyId])
   @@map("suumo_posts")
+}
+
+// ===== MediaPost (媒体投稿履歴) =====
+
+model MediaPost {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  propertyId      String    @map("property_id") @db.Uuid
+  platform        String    @db.VarChar(50) // suumo, athome, homes, other
+  status          String    @default("pending") @db.VarChar(50) // pending, processing, posted, failed
+  externalId      String?   @map("external_id") @db.VarChar(100)
+  useStaging      Boolean   @default(false) @map("use_staging")
+  stagedImageUrls Json      @default("[]") @map("staged_image_urls")
+  errorMessage    String?   @map("error_message")
+  postedAt        DateTime? @map("posted_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([companyId, platform, status])
+  @@index([propertyId])
+  @@map("media_posts")
 }
 
 // ===== Visit (来店記録) =====
