@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard,
@@ -16,7 +16,6 @@ import {
   Home,
   Banknote,
   RefreshCw,
-  LogOut,
   Upload,
   TrendingUp,
   FootprintsIcon,
@@ -30,6 +29,7 @@ import {
   ChevronRight,
   X,
   Settings,
+  LogOut,
 } from "lucide-react";
 
 type NavItem = {
@@ -194,15 +194,6 @@ type SidebarProps = {
 };
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const router = useRouter();
-
-  function handleLogout() {
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("auth_user");
-    document.cookie = "auth_token=; path=/; max-age=0";
-    router.push("/login");
-  }
-
   return (
     <>
       {/* Desktop sidebar: always visible, static */}
@@ -257,14 +248,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         </nav>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-slate-700 space-y-2">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
-          >
-            <LogOut size={14} />
-            <span>ログアウト</span>
-          </button>
+        <div className="px-4 py-3 border-t border-slate-700">
           <p className="text-xs text-slate-500 text-center">v0.6.0</p>
         </div>
       </aside>

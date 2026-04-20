@@ -1,0 +1,117 @@
+/* 不動産DX 取込パネル - いいもんページ上に表示 */
+
+#rdx-iimon-panel {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 280px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  z-index: 999999;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  color: #1a202c;
+  overflow: hidden;
+}
+
+.rdx-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.rdx-logo {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.rdx-subtitle {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.rdx-body {
+  padding: 14px 16px;
+}
+
+.rdx-status {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 10px;
+}
+
+.rdx-status-ok {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.rdx-status-warn {
+  color: #d97706;
+  font-weight: 600;
+}
+
+.rdx-status-error {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.rdx-btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.rdx-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.rdx-btn-primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.rdx-btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.rdx-result {
+  margin-top: 12px;
+  padding: 10px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.rdx-result-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  font-size: 12px;
+}
+
+.rdx-result-row span {
+  color: #64748b;
+}
+
+.rdx-result-row strong {
+  color: #1a202c;
+}
+
+.rdx-error-text {
+  color: #dc2626;
+  font-size: 12px;
+  margin: 0;
+  word-break: break-all;
+}
